@@ -177,7 +177,8 @@ def load_ui_config() -> dict[str, Any]:
             "routing_ip_type": "all",
             "connection_enabled": True,
             "fixed_node_id": "",
-            "favorite_node_ids": []
+            "favorite_node_ids": [],
+            "fav_fail_fallback": True
         }
         updated = False
         if auth_file.exists():
@@ -185,7 +186,7 @@ def load_ui_config() -> dict[str, Any]:
                 data = json.loads(auth_file.read_text(encoding="utf-8"))
                 for key, val in data.items():
                     config[key] = val
-                for key in ["routing_mode", "force_country", "routing_ip_type", "connection_enabled", "fixed_node_id", "favorite_node_ids"]:
+                for key in ["routing_mode", "force_country", "routing_ip_type", "connection_enabled", "fixed_node_id", "favorite_node_ids", "fav_fail_fallback"]:
                     if key not in data:
                         updated = True
             except Exception:
@@ -305,6 +306,7 @@ def get_state() -> dict[str, Any]:
     state["connection_enabled"] = ui_cfg.get("connection_enabled", True)
     state["fixed_node_id"] = ui_cfg.get("fixed_node_id", "")
     state["favorite_node_ids"] = ui_cfg.get("favorite_node_ids", [])
+    state["fav_fail_fallback"] = ui_cfg.get("fav_fail_fallback", True)
     
     return state
 
@@ -1120,7 +1122,13 @@ def auto_switch_node(attempt: int = 0) -> None:
             ]
         if routing_mode == "favorites":
             fav_ids = set(ui_cfg.get("favorite_node_ids", []))
-            candidates = [n for n in candidates if n.get("id") in fav_ids]
+            fav_candidates = [n for n in candidates if n.get("id") in fav_ids]
+            if fav_candidates:
+                candidates = fav_candidates
+            else:
+                fav_fail_fallback = ui_cfg.get("fav_fail_fallback", True)
+                if not fav_fail_fallback:
+                    candidates = []
             
         # Apply routing_ip_type filter
         routing_ip_type = ui_cfg.get("routing_ip_type", "all")
@@ -1415,7 +1423,13 @@ def maintain_valid_nodes(force: bool = False) -> str:
                             ]
                         elif routing_mode == "favorites":
                             fav_ids = set(ui_cfg.get("favorite_node_ids", []))
-                            available_candidates = [n for n in available_candidates if n.get("id") in fav_ids]
+                            fav_candidates = [n for n in available_candidates if n.get("id") in fav_ids]
+                            if fav_candidates:
+                                available_candidates = fav_candidates
+                            else:
+                                fav_fail_fallback = ui_cfg.get("fav_fail_fallback", True)
+                                if not fav_fail_fallback:
+                                    available_candidates = []
                         
                         # Apply routing_ip_type filter for auto-connect
                         routing_ip_type = ui_cfg.get("routing_ip_type", "all")
@@ -2619,6 +2633,57 @@ INDEX_HTML = r"""<!doctype html>
     select option {
       background-color: #0f172a;
       color: #f8fafc;
+    }
+    
+    /* Option Card Styles for Proxy/Routing Settings */
+    .option-group {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 6px;
+    }
+    
+    @media (max-width: 480px) {
+      .option-group {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    .option-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      user-select: none;
+      position: relative;
+      text-align: left;
+    }
+    
+    .option-card:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(99, 102, 241, 0.25);
+      transform: translateY(-1px);
+    }
+    
+    .option-card.active {
+      background: rgba(99, 102, 241, 0.08);
+      border-color: var(--primary);
+      box-shadow: 0 0 12px rgba(99, 102, 241, 0.15);
+    }
+    
+    .option-card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+    
+    .option-card-desc {
+      font-size: 11px;
+      color: var(--text-secondary);
+      line-height: 1.3;
     }
   </style>
 </head>
@@ -3899,7 +3964,7 @@ function populateRoutingCountries() {
   select.innerHTML = html;
   
   if (state) {
-    select.value = translateCountry(state.force_country) || "";
+    select.value = state.force_country ? translateCountry(state.force_country) : "";
   }
 }
 
@@ -4845,21 +4910,53 @@ class Handler(BaseHTTPRequestHandler):
                 payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
                 new_username = str(payload.get("username") or "").strip()
                 new_password = str(payload.get("password") or "").strip()
+                new_port = payload.get("port")
+                new_suffix = str(payload.get("secret_path") or "").strip()
                 
                 if not new_username or not new_password:
                     self.send_json({"ok": False, "error": "用户名和密码不能为空"}, HTTPStatus.BAD_REQUEST)
                     return
                 
+                try:
+                    new_port_int = int(new_port)
+                    if not (1 <= new_port_int <= 65535):
+                        raise ValueError()
+                except (TypeError, ValueError):
+                    self.send_json({"ok": False, "error": "网页管理端口范围必须是 1 至 65535"}, HTTPStatus.BAD_REQUEST)
+                    return
+
+                if not new_suffix or not re.match(r"^[A-Za-z0-9]+$", new_suffix):
+                    self.send_json({"ok": False, "error": "安全后缀仅能由英文字母和数字组成"}, HTTPStatus.BAD_REQUEST)
+                    return
+
                 ui_cfg = load_ui_config()
+                expected_username = ui_cfg.get("username", "")
+                expected_password = ui_cfg.get("password", "")
+                expected_port = ui_cfg.get("port", 8787)
+                expected_suffix = ui_cfg.get("secret_path", "EJsW2EeBo9lY")
+
                 ui_cfg["username"] = new_username
                 ui_cfg["password"] = new_password
+                ui_cfg["port"] = new_port_int
+                ui_cfg["secret_path"] = new_suffix
                 
                 auth_file = DATA_DIR / "ui_auth.json"
                 with lock:
                     DATA_DIR.mkdir(exist_ok=True, parents=True)
                     auth_file.write_text(json.dumps(ui_cfg, ensure_ascii=False, indent=2), encoding="utf-8")
                 
-                self.send_json({"ok": True, "message": "账号密码配置更新成功，已即时生效！"})
+                restart_needed = (new_port_int != expected_port or new_suffix != expected_suffix)
+                if restart_needed:
+                    self.send_json({"ok": True, "restart_needed": True, "message": "配置更新成功，网页管理端口或路径已变更，将在 2 秒内重启..."})
+                    
+                    def restart_server():
+                        time.sleep(2)
+                        print("[系统] 管理后台安全配置更新，进程即将退出以触发自动重启...", flush=True)
+                        os._exit(0)
+                    
+                    threading.Thread(target=restart_server, daemon=True).start()
+                else:
+                    self.send_json({"ok": True, "restart_needed": False, "message": "账号密码配置更新成功，已即时生效！"})
             except Exception as exc:
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
             return
@@ -4869,20 +4966,10 @@ class Handler(BaseHTTPRequestHandler):
                 length = parse_int(self.headers.get("Content-Length"))
                 payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
                 
-                new_port = payload.get("port")
-                new_suffix = str(payload.get("secret_path") or "").strip()
                 new_proxy_port = payload.get("proxy_port")
                 routing_mode = str(payload.get("routing_mode") or "auto").strip()
                 force_country = str(payload.get("force_country") or "").strip()
                 routing_ip_type = str(payload.get("routing_ip_type") or "all").strip()
-                
-                try:
-                    new_port_int = int(new_port)
-                    if not (1 <= new_port_int <= 65535):
-                        raise ValueError()
-                except (TypeError, ValueError):
-                    self.send_json({"ok": False, "error": "端口范围必须是 1 至 65535"}, HTTPStatus.BAD_REQUEST)
-                    return
                 
                 try:
                     new_proxy_port_int = int(new_proxy_port)
@@ -4892,15 +4979,7 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json({"ok": False, "error": "代理出站端口范围必须是 1024 至 65535"}, HTTPStatus.BAD_REQUEST)
                     return
                 
-                if new_proxy_port_int == new_port_int:
-                    self.send_json({"ok": False, "error": "代理出站端口不能与网页管理端口相同"}, HTTPStatus.BAD_REQUEST)
-                    return
-                
-                if not new_suffix or not re.match(r"^[A-Za-z0-9]+$", new_suffix):
-                    self.send_json({"ok": False, "error": "安全后缀仅能由英文字母和数字组成"}, HTTPStatus.BAD_REQUEST)
-                    return
-                
-                if (routing_mode not in ("auto", "fixed_ip", "fixed_region", "favorites")):
+                if routing_mode not in ("auto", "fixed_ip", "fixed_region", "favorites"):
                     self.send_json({"ok": False, "error": "无效的路由配置模式"}, HTTPStatus.BAD_REQUEST)
                     return
                 if routing_ip_type not in ("all", "residential", "hosting"):
@@ -4908,12 +4987,12 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 
                 ui_cfg = load_ui_config()
-                expected_port = ui_cfg.get("port", 8787)
-                expected_suffix = ui_cfg.get("secret_path", "EJsW2EeBo9lY")
                 expected_proxy_port = ui_cfg.get("proxy_port", 7928)
                 
-                ui_cfg["port"] = new_port_int
-                ui_cfg["secret_path"] = new_suffix
+                if new_proxy_port_int == ui_cfg.get("port", 8787):
+                    self.send_json({"ok": False, "error": "代理出站端口不能与网页管理端口相同"}, HTTPStatus.BAD_REQUEST)
+                    return
+                
                 ui_cfg["proxy_port"] = new_proxy_port_int
                 ui_cfg["routing_mode"] = routing_mode
                 ui_cfg["force_country"] = force_country
@@ -4924,13 +5003,13 @@ class Handler(BaseHTTPRequestHandler):
                     DATA_DIR.mkdir(exist_ok=True, parents=True)
                     auth_file.write_text(json.dumps(ui_cfg, ensure_ascii=False, indent=2), encoding="utf-8")
                 
-                restart_needed = (new_port_int != expected_port or new_suffix != expected_suffix or new_proxy_port_int != expected_proxy_port)
+                restart_needed = (new_proxy_port_int != expected_proxy_port)
                 if restart_needed:
-                    self.send_json({"ok": True, "restart_needed": True, "message": "配置更新成功，系统及网页端口或后缀变更，将在 2 秒内重启..."})
+                    self.send_json({"ok": True, "restart_needed": True, "message": "配置更新成功，代理出站端口变更，将在 2 秒内重启..."})
                     
                     def restart_server():
                         time.sleep(2)
-                        print("[系统] 管理后台配置更新，进程即将退出以触发自动重启...", flush=True)
+                        print("[系统] 代理出站端口变更，进程即将退出以触发自动重启...", flush=True)
                         os._exit(0)
                     
                     threading.Thread(target=restart_server, daemon=True).start()
@@ -4947,6 +5026,7 @@ class Handler(BaseHTTPRequestHandler):
                 routing_mode = str(payload.get("routing_mode") or "auto").strip()
                 force_country = str(payload.get("force_country") or "").strip()
                 routing_ip_type = str(payload.get("routing_ip_type") or "all").strip()
+                fav_fail_fallback = bool(payload.get("fav_fail_fallback", True))
                 
                 if routing_mode not in ("auto", "fixed_ip", "fixed_region", "favorites"):
                     self.send_json({"ok": False, "error": "无效的路由配置模式"}, HTTPStatus.BAD_REQUEST)
@@ -4959,6 +5039,7 @@ class Handler(BaseHTTPRequestHandler):
                 ui_cfg["routing_mode"] = routing_mode
                 ui_cfg["force_country"] = force_country
                 ui_cfg["routing_ip_type"] = routing_ip_type
+                ui_cfg["fav_fail_fallback"] = fav_fail_fallback
                 ui_cfg.pop("enable_force_country", None)
                 
                 auth_file = DATA_DIR / "ui_auth.json"
