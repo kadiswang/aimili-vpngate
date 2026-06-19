@@ -9,6 +9,19 @@ Bilingual: [中文](#中文) | [English](#english)
 
 AimiliVPN 是一款基于官方 VPNGate 开放协议的高性能、零依赖 VPN 代理网关。它以纯 Python 标准库编写，内置美观响应式的管理网页，提供智能并发测速、多路由模式、出站代理网关、实时日志等强大功能。
 
+### 🌟 VPS 优选推荐：跑 AimiliVPN 更稳更省心
+[![BandwagonHost 顶级三网优化](https://img.shields.io/badge/BandwagonHost-%E9%A1%B6%E7%BA%A7%E4%B8%89%E7%BD%91%E4%BC%98%E5%8C%96-red?style=for-the-badge)](https://bandwagonhost.com/aff.php?aff=81790)
+[![RackNerd 6000GB 流量](https://img.shields.io/badge/RackNerd-6000GB%2F%E6%9C%88%20%E5%A4%A7%E6%B5%81%E9%87%8F-blue?style=for-the-badge)](https://my.racknerd.com/aff.php?aff=18708)
+
+| 推荐 | 适合谁 | 亮点 | 入口 |
+| --- | --- | --- | --- |
+| **BandwagonHost 搬瓦工** | 更看重国内访问质量、延迟和线路上限的用户 | **顶级三网优化线路**，适合对网络体验、跨境访问质量和长期稳定性要求更高的场景 | [立即查看](https://bandwagonhost.com/aff.php?aff=81790) |
+| **RackNerd** | 想低成本部署、测试、长期挂机的用户 | **每月 6000GB 流量**，价格实惠、配置给得足，适合入门部署和性价比优先的 VPS 需求 | [立即查看](https://my.racknerd.com/aff.php?aff=18708) |
+
+> 两家都是稳定可靠的 VPS 商家：追求线路质量优先看 **BandwagonHost**；更在意预算、配置和大流量，优先看 **RackNerd**。
+>
+> 如果你通过上面的 aff 链接购买，欢迎直接私信我，我可以帮你完成从购买、系统选择、部署到 AimiliVPN 配置的全流程设置。这个项目长期维护和开发都需要时间与成本，如果它帮到了你，也欢迎通过这些链接购买 VPS 支持一下项目继续更新。
+
 ### 📢 官方交流与反馈
 [![Telegram](https://img.shields.io/badge/TG交流群-arestemple-2CA5E0?style=flat-square&logo=telegram&logoColor=white)](https://t.me/arestemple)
 [![Forum](https://img.shields.io/badge/交流论坛-339936.xyz-orange?style=flat-square&logo=discourse&logoColor=white)](https://339936.xyz)
@@ -125,6 +138,19 @@ bash <(curl -Ls https://raw.githubusercontent.com/baoweise-bot/aimili-vpngate/ma
 ## English
 
 AimiliVPN is a high-performance, zero-dependency VPN proxy gateway built entirely using Python's standard library. It parses official VPNGate servers, benchmarks latency, and routes traffic through a built-in dual-protocol (HTTP/SOCKS5) proxy server.
+
+### 🌟 Recommended VPS Deals
+[![BandwagonHost Premium Optimized Routes](https://img.shields.io/badge/BandwagonHost-Premium%20Optimized%20Routes-red?style=for-the-badge)](https://bandwagonhost.com/aff.php?aff=81790)
+[![RackNerd 6000GB Bandwidth](https://img.shields.io/badge/RackNerd-6000GB%2Fmonth%20Bandwidth-blue?style=for-the-badge)](https://my.racknerd.com/aff.php?aff=18708)
+
+| Pick | Best for | Highlights | Link |
+| --- | --- | --- | --- |
+| **BandwagonHost** | Users who care most about China connectivity, latency, and route quality | **Premium China Telecom/Unicom/Mobile optimized routes**, ideal for demanding cross-border networking and long-term use | [View deals](https://bandwagonhost.com/aff.php?aff=81790) |
+| **RackNerd** | Budget deployments, testing, and long-running lightweight services | **6000GB monthly bandwidth**, affordable pricing, and generous specs for value-focused VPS use | [View deals](https://my.racknerd.com/aff.php?aff=18708) |
+
+> Both providers are stable and reliable. Choose **BandwagonHost** for premium route quality, or **RackNerd** when budget, specs, and high bandwidth matter most.
+>
+> If you purchase through the affiliate links above, feel free to message me directly. I can help with the full setup flow, from ordering and OS selection to deployment and AimiliVPN configuration. Maintaining this project takes real time and cost, so using these links is also a practical way to support future updates.
 
 ### 📢 Community & Feedback
 - **Telegram Group**: [arestemple](https://t.me/arestemple)
