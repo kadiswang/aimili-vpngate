@@ -6,6 +6,7 @@ import secrets
 import select
 import socket
 import threading
+import concurrent.futures
 import urllib.parse
 import time
 from typing import Any
@@ -220,18 +221,33 @@ def create_connection(address: tuple[str, int], timeout: float = 20) -> socket.s
     else:
         raise OSError("getaddrinfo returns empty list")
 
+RELAY_BUFFER_SIZE = parse_positive_int(os.environ.get("LOCAL_PROXY_RELAY_BUFFER"), 262144)
+
 def relay(left: socket.socket, right: socket.socket) -> None:
     sockets = [left, right]
     while True:
-        readable, _, errored = select.select(sockets, [], sockets, 120)
-        if errored or not readable:
+        readable, _, errored = select.select(sockets, [], sockets, 65)
+        if errored:
+            return
+        if not readable:
+            try:
+                left.sendall(b"")
+            except OSError:
+                pass
+            try:
+                right.sendall(b"")
+            except OSError:
+                pass
             return
         for source in readable:
             target = right if source is left else left
-            data = source.recv(65536)
-            if not data:
+            try:
+                data = source.recv(RELAY_BUFFER_SIZE)
+                if not data:
+                    return
+                target.sendall(data)
+            except OSError:
                 return
-            target.sendall(data)
 
 def socks5_client(client: socket.socket, first_byte: bytes) -> None:
     upstream = None
@@ -447,10 +463,21 @@ def start_proxy_server(host: str, port: int) -> None:
             diag_msg = diag[1] if diag else str(e)
             print(f"[ERROR] Failed to start HTTP/SOCKS5 proxy on {host}:{port}: {diag_msg}", flush=True)
             return
-
-    while True:
-        try:
-            client, address = server.accept()
+    
+    thread_pool = concurrent.futures.ThreadPoolExecutor(
+        max_workers=MAX_PROXY_CONNECTIONS,
+        thread_name_prefix="proxy"
+    )
+    pending: set[concurrent.futures.Future[None]] = set()
+    
+    try:
+        while True:
+            try:
+                client, address = server.accept()
+            except OSError:
+                time.sleep(0.5)
+                continue
+            
             if not proxy_connection_sem.acquire(blocking=False):
                 print(f"[代理限流] 当前连接数已达到上限 {MAX_PROXY_CONNECTIONS}，拒绝客户端 {address}", flush=True)
                 try:
@@ -458,14 +485,23 @@ def start_proxy_server(host: str, port: int) -> None:
                 except OSError:
                     pass
                 continue
-
-            def run_client() -> None:
+            
+            def run_client(conn: socket.socket, addr: tuple[str, int]) -> None:
                 try:
-                    proxy_client(client, address)
+                    proxy_client(conn, addr)
                 finally:
                     proxy_connection_sem.release()
-
-            threading.Thread(target=run_client, daemon=True).start()
-        except Exception as e:
-            print(f"[ERROR] Proxy accept failed: {e}", flush=True)
-            time.sleep(0.5)
+            
+            fut = thread_pool.submit(run_client, client, address)
+            pending.add(fut)
+            fut.add_done_callback(pending.discard)
+    except KeyboardInterrupt:
+        print("\n[代理服务器] 收到中断信号，正在关闭...", flush=True)
+    finally:
+        for f in pending:
+            f.cancel()
+        thread_pool.shutdown(wait=False, cancel_futures=True)
+        try:
+            server.close()
+        except Exception:
+            pass
