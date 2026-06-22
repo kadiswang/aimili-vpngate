@@ -2752,6 +2752,7 @@ INDEX_HTML = r"""<!doctype html>
     .test-btn:hover { background: var(--success); color: #fff; border-color: transparent; }
     .connect-btn:disabled, .test-btn:disabled { opacity: 0.35; cursor: not-allowed; }
     .modal-content { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; width: 90%; max-width: 480px; padding: 28px; box-shadow: 0 20px 60px rgba(0,0,0,0.12); animation: modalFadeIn .2s ease; }
+    .modal { display: none; }
     .modal-content .btn-primary { height: 38px; padding: 0 18px; }
     .input-field { width: 100%; height: 40px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 0 12px; color: var(--text); font-family: inherit; font-size: 14px; outline: none; }
     .input-field:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
