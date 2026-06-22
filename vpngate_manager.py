@@ -2397,10 +2397,12 @@ INDEX_HTML = r"""<!doctype html>
     button:disabled { opacity: 0.35; cursor: not-allowed; }
 
     .content-body {
-      padding: 20px 28px;
-      max-width: 1400px;
+      padding: 28px 36px;
+      max-width: 1300px;
       margin: 0 auto;
     }
+
+    .page-content { display: block; }
 
     .active-card {
       background: var(--surface);
@@ -2786,15 +2788,15 @@ INDEX_HTML = r"""<!doctype html>
       <div class="sidebar-brand-name">AimiliVPN</div>
     </div>
     <nav class="sidebar-nav">
-      <a class="nav-item active" href="#">
+      <a class="nav-item active" id="nav_overview" href="javascript:void(0)" onclick="switchPage('overview')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
         概览
       </a>
-      <a class="nav-item" href="#">
+      <a class="nav-item" id="nav_nodes" href="javascript:void(0)" onclick="switchPage('nodes')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
         节点管理
       </a>
-      <a class="nav-item" href="#">
+      <a class="nav-item" id="nav_logs" href="javascript:void(0)" onclick="openLogsModal()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
         操作日志
       </a>
@@ -2866,7 +2868,7 @@ INDEX_HTML = r"""<!doctype html>
 </header>
 <div class="content-body">
 
-    <!-- 当前连接活动节点卡片 -->
+    <div id="page_overview" class="page-content">
     <section class="active-node-section" id="active_node_card" style="margin-bottom: 24px;">
       <!-- Rendered dynamically by render() -->
     </section>
@@ -2961,6 +2963,8 @@ INDEX_HTML = r"""<!doctype html>
       </div>
     </div>
   </div>
+
+  <div id="page_nodes" class="page-content" style="display:none;"></div>
 
   <!-- Credentials Modal (网页安全设置) -->
   <div id="credentials_modal" class="modal">
@@ -3781,6 +3785,16 @@ function toggleSettingsSubmenu() {
   }
 }
 
+function switchPage(name) {
+  document.querySelectorAll(".page-content").forEach(function(p) { p.style.display = "none"; });
+  document.querySelectorAll(".nav-item").forEach(function(n) { n.classList.remove("active"); });
+  var page = document.getElementById("page_" + name);
+  if (page) page.style.display = "";
+  var nav = document.getElementById("nav_" + name);
+  if (nav) nav.classList.add("active");
+  localStorage.setItem("vpngate_page", name);
+}
+
 async function doRefreshNodes(){ 
   const el=$("sidebar_refresh");
   el.style.pointerEvents="none"; 
@@ -4349,7 +4363,6 @@ let logsPollInterval = null;
 let rawLogsCache = [];
 
 function openLogsModal() {
-  $("admin_dropdown").style.display = "none";
   $("logs_modal").style.display = "flex";
   loadLogs();
   if (logsPollInterval) clearInterval(logsPollInterval);
@@ -4461,6 +4474,12 @@ function exportLogContent() {
   document.body.removeChild(a);
 URL.revokeObjectURL(url);
 }
+
+// 页面初始化
+(function(){
+  var saved = localStorage.getItem("vpngate_page") || "overview";
+  switchPage(saved);
+})();
 
 // 主题初始化
 (function(){
