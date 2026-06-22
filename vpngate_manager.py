@@ -2872,8 +2872,9 @@ INDEX_HTML = r"""<!doctype html>
     <section class="active-node-section" id="active_node_card" style="margin-bottom: 24px;">
       <!-- Rendered dynamically by render() -->
     </section>
+    </div>
 
-
+    <div id="page_nodes" class="page-content" style="display:none;"></div>
 
   <section class="toolbar">
     <select id="status_filter">
@@ -2963,8 +2964,6 @@ INDEX_HTML = r"""<!doctype html>
       </div>
     </div>
   </div>
-
-  <div id="page_nodes" class="page-content" style="display:none;"></div>
 
   <!-- Credentials Modal (网页安全设置) -->
   <div id="credentials_modal" class="modal">
@@ -3792,6 +3791,9 @@ function switchPage(name) {
   if (page) page.style.display = "";
   var nav = document.getElementById("nav_" + name);
   if (nav) nav.classList.add("active");
+  // Toggle active_node_card visibility
+  var card = document.getElementById("active_node_card");
+  if (card) card.style.display = (name === "overview") ? "" : "none";
   localStorage.setItem("vpngate_page", name);
 }
 
