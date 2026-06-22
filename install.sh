@@ -47,8 +47,8 @@ echo -e "${BLUE}        欢迎使用 AimiliVPN 一键源码部署与管理脚本
 echo -e "${BLUE}==========================================================${PLAIN}"
 
 # 3. Configure GitHub Repository URL
-# Default to the official repository (baoweise-bot/aimili-vpngate)
-DEFAULT_USER="baoweise-bot"
+# Default to the user's repository (kadiswang/aimili-vpngate)
+DEFAULT_USER="kadiswang"
 DEFAULT_REPO="aimili-vpngate"
 
 # Allow custom repository override via command line arguments
@@ -82,8 +82,8 @@ fi
 
 # 4. Clone or pull the repository
 INSTALL_DIR="/opt/aimilivpn"
-# 默认部署分支（在 bate 分支设为 bate；在 main 分支设为 main）
-DEFAULT_DEPLOY_BRANCH="main"
+# 默认部署分支（在 260621-refactor-ui-light-theme 分支设为 260621-refactor-ui-light-theme；在 main 分支设为 main）
+DEFAULT_DEPLOY_BRANCH="260621-refactor-ui-light-theme"
 
 # 自动检测本地已安装版本当前所在的分支
 CURRENT_BRANCH=""
