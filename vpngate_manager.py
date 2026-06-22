@@ -2291,13 +2291,16 @@ INDEX_HTML = r"""<!doctype html>
       gap: 16px;
     }
 
-    .brand h1 {
+.brand h1 {
       font-size: 18px;
       font-weight: 700;
       color: var(--text);
+    }
+
+    .brand {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
     }
 
     .brand h1 svg { color: var(--primary); }
@@ -2384,6 +2387,7 @@ INDEX_HTML = r"""<!doctype html>
     .content-body {
       padding: 20px 28px;
       max-width: 1400px;
+      margin: 0 auto;
     }
 
     .active-card {
@@ -2828,25 +2832,6 @@ INDEX_HTML = r"""<!doctype html>
       <svg xmlns="http://www.w3.org/2000/svg" style="width:16px; height:16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5" /></svg>
       更新节点
     </button>
-    <div class="dropdown">
-      <button id="theme_btn" class="btn-primary" onclick="document.getElementById('theme_dropdown').classList.toggle('show')" title="切换主题" style="background: var(--surface); border: 1px solid var(--border-color); color: var(--text-secondary);">
-        <svg id="theme_icon" xmlns="http://www.w3.org/2000/svg" style="width:16px; height:16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-      </button>
-      <div id="theme_dropdown" class="dropdown-content" style="min-width:140px;">
-        <a id="theme_btn_a" href="javascript:void(0)" onclick="setTheme('light');event.stopPropagation();">
-          <svg xmlns="http://www.w3.org/2000/svg" style="width:14px; height:14px; margin-right:6px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-          明亮模式
-        </a>
-        <a id="theme_btn_b" href="javascript:void(0)" onclick="setTheme('dark');event.stopPropagation();">
-          <svg xmlns="http://www.w3.org/2000/svg" style="width:14px; height:14px; margin-right:6px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" /></svg>
-          暗黑模式
-        </a>
-        <a id="theme_btn_c" href="javascript:void(0)" onclick="setTheme('system');event.stopPropagation();">
-          <svg xmlns="http://www.w3.org/2000/svg" style="width:14px; height:14px; margin-right:6px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" /></svg>
-          跟随系统
-        </a>
-      </div>
-    </div>
     <div class="dropdown">
       <button id="admin_btn" class="btn-primary" style="background: var(--surface); border: 1px solid var(--border-color); color: var(--text-primary);">
         <svg xmlns="http://www.w3.org/2000/svg" style="width:16px; height:16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
@@ -3748,17 +3733,11 @@ var themeIcons = {
 function getThemeIcon(theme) { return themeIcons[theme] || themeIcons.light; }
 function setTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme);
-  var icon = document.getElementById('theme_icon');
-  if (icon) icon.innerHTML = getThemeIcon(theme);
   var si = document.getElementById('sidebar_theme_icon');
   if (si) si.innerHTML = getThemeIcon(theme);
   var sl = document.getElementById('sidebar_theme_label');
   if (sl) sl.textContent = themeLabels[theme] || themeLabels.light;
   localStorage.setItem(THEME_KEY, theme);
-  document.querySelectorAll('#theme_btn_a, #theme_btn_b, #theme_btn_c').forEach(function(el, i) {
-    var modes = ['light', 'dark', 'system'];
-    el.style.background = modes[i] === theme ? 'rgba(99,102,241,0.1)' : 'transparent';
-  });
 }
 function toggleTheme() {
   var saved = localStorage.getItem(THEME_KEY) || 'light';
@@ -4510,14 +4489,6 @@ URL.revokeObjectURL(url);
     }
   });
 })();
-
-// 点击外部关闭主题下拉
-document.addEventListener('click', function(e){
-  var dd = document.getElementById('theme_dropdown');
-  if (!e.target.closest('#theme_btn') && !e.target.closest('#theme_dropdown')) {
-    dd.classList.remove('show');
-  }
-});
 
 </script>
 </main>
