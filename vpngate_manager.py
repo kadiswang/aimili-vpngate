@@ -1795,7 +1795,7 @@ LOGIN_HTML = r"""<!DOCTYPE html>
 
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0a0e17;
+      background: #f0f4f8;
       height: 100vh;
       display: flex;
       align-items: center;
@@ -1804,10 +1804,10 @@ LOGIN_HTML = r"""<!DOCTYPE html>
 
     .login-card {
       width: 380px;
-      background: #131826;
-      border: 1px solid #1e2538;
+      background: #ffffff;
       border-radius: 16px;
       padding: 40px 32px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04);
     }
 
     .brand {
@@ -1818,25 +1818,25 @@ LOGIN_HTML = r"""<!DOCTYPE html>
     .brand-icon {
       width: 48px;
       height: 48px;
-      background: #1e293b;
+      background: #eef2ff;
       border-radius: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
       margin: 0 auto 16px;
-      color: #818cf8;
+      color: #6366f1;
     }
 
     .brand h1 {
       font-size: 22px;
       font-weight: 700;
-      color: #f1f5f9;
+      color: #1e293b;
       margin-bottom: 6px;
     }
 
     .brand p {
       font-size: 14px;
-      color: #64748b;
+      color: #94a3b8;
     }
 
     .form-group {
@@ -1847,30 +1847,35 @@ LOGIN_HTML = r"""<!DOCTYPE html>
       display: block;
       font-size: 13px;
       font-weight: 500;
-      color: #94a3b8;
+      color: #64748b;
       margin-bottom: 8px;
     }
 
     input {
       width: 100%;
       height: 44px;
-      background: #0f1422;
-      border: 1px solid #1e293b;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
       border-radius: 10px;
       padding: 0 14px;
-      color: #f1f5f9;
+      color: #1e293b;
       font-family: inherit;
       font-size: 14px;
       outline: none;
-      transition: border-color 0.2s;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
 
     input:focus {
       border-color: #6366f1;
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+    }
+
+    input::placeholder {
+      color: #cbd5e1;
     }
 
     .error-message {
-      color: #f43f5e;
+      color: #ef4444;
       font-size: 13px;
       margin-top: 8px;
       display: none;
@@ -1887,11 +1892,15 @@ LOGIN_HTML = r"""<!DOCTYPE html>
       font-size: 15px;
       font-weight: 600;
       cursor: pointer;
-      transition: background 0.2s;
+      transition: background 0.2s, transform 0.1s;
     }
 
     button:hover {
       background: #4f46e5;
+    }
+
+    button:active {
+      transform: scale(0.98);
     }
 
     button:disabled {
@@ -1981,22 +1990,27 @@ INDEX_HTML = r"""<!doctype html>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
-      --bg: #0a0e17;
-      --surface: #111827;
-      --surface-2: #1a2236;
-      --border: #1e293b;
-      --border-light: #273548;
-      --text: #f1f5f9;
-      --text-secondary: #94a3b8;
-      --text-muted: #64748b;
+      --bg: #f1f5f9;
+      --surface: #ffffff;
+      --surface-2: #f8fafc;
+      --border: #e2e8f0;
+      --border-light: #cbd5e1;
+      --border-color: #e2e8f0;
+      --text: #1e293b;
+      --text-primary: #1e293b;
+      --text-secondary: #64748b;
+      --text-muted: #94a3b8;
       --primary: #6366f1;
       --primary-hover: #4f46e5;
       --success: #10b981;
-      --success-bg: rgba(16, 185, 129, 0.1);
+      --success-bg: rgba(16,185,129,0.08);
       --danger: #ef4444;
-      --danger-bg: rgba(239, 68, 68, 0.1);
+      --danger-bg: rgba(239,68,68,0.08);
       --warning: #f59e0b;
-      --warning-bg: rgba(245, 158, 11, 0.1);
+      --warning-bg: rgba(245,158,11,0.08);
+      --success-gradient: linear-gradient(135deg, #059669, #10b981);
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.04);
+      --shadow: 0 1px 4px rgba(0,0,0,0.06), 0 2px 12px rgba(0,0,0,0.04);
     }
 
     body {
@@ -2009,7 +2023,7 @@ INDEX_HTML = r"""<!doctype html>
 
     header {
       padding: 14px 32px;
-      background: rgba(10, 14, 23, 0.9);
+      background: #ffffff;
       border-bottom: 1px solid var(--border);
       display: flex;
       justify-content: space-between;
@@ -2018,6 +2032,7 @@ INDEX_HTML = r"""<!doctype html>
       position: sticky;
       top: 0;
       z-index: 100;
+      box-shadow: var(--shadow-sm);
     }
 
     .brand h1 {
@@ -2066,10 +2081,11 @@ INDEX_HTML = r"""<!doctype html>
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: var(--surface);
+      background: #ffffff;
       color: var(--text-secondary);
       white-space: nowrap;
       text-decoration: none;
+      box-shadow: var(--shadow-sm);
     }
 
     button:hover { border-color: var(--border-light); color: var(--text); }
@@ -2102,9 +2118,10 @@ INDEX_HTML = r"""<!doctype html>
       background: transparent;
       border: 1px solid var(--border);
       color: var(--text-secondary);
+      box-shadow: none;
     }
 
-    .btn-ghost:hover { background: var(--surface); }
+    .btn-ghost:hover { background: var(--surface-2); }
 
     button:disabled { opacity: 0.35; cursor: not-allowed; }
 
@@ -2124,6 +2141,7 @@ INDEX_HTML = r"""<!doctype html>
       align-items: center;
       gap: 20px;
       margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
     }
 
     .active-card-left {
@@ -2134,7 +2152,7 @@ INDEX_HTML = r"""<!doctype html>
 
     .active-card-icon {
       width: 42px; height: 42px;
-      background: var(--surface-2);
+      background: #eef2ff;
       border-radius: 10px;
       display: flex;
       align-items: center;
@@ -2142,7 +2160,7 @@ INDEX_HTML = r"""<!doctype html>
       flex-shrink: 0;
     }
 
-    .active-card-icon svg { width: 20px; height: 20px; }
+    .active-card-icon svg { width: 20px; height: 20px; color: var(--primary); }
 
     .active-card-details {
       display: flex;
@@ -2180,7 +2198,7 @@ INDEX_HTML = r"""<!doctype html>
     .badge-ok { background: var(--success-bg); color: var(--success); border-color: rgba(16,185,129,0.2); }
     .badge-err { background: var(--danger-bg); color: var(--danger); border-color: rgba(239,68,68,0.2); }
     .badge-warn { background: var(--warning-bg); color: var(--warning); border-color: rgba(245,158,11,0.2); }
-    .badge-info { background: rgba(99,102,241,0.1); color: #a5b4fc; border-color: rgba(99,102,241,0.2); }
+    .badge-info { background: #eef2ff; color: #6366f1; border-color: rgba(99,102,241,0.2); }
 
     .pulse { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 1.5s infinite; display: inline-block; }
     @keyframes pulse { 0%{opacity:1;transform:scale(.9)} 50%{opacity:.4;transform:scale(1.5)} 100%{opacity:1;transform:scale(.9)} }
@@ -2200,7 +2218,7 @@ INDEX_HTML = r"""<!doctype html>
       display: flex;
       justify-content: space-between;
       align-items: center;
-      transition: border-color 0.15s;
+      box-shadow: var(--shadow-sm);
     }
 
     .stat-card:hover { border-color: var(--border-light); }
@@ -2220,7 +2238,7 @@ INDEX_HTML = r"""<!doctype html>
 
     .stat-icon {
       width: 36px; height: 36px;
-      background: var(--surface-2);
+      background: #eef2ff;
       border-radius: 8px;
       display: flex;
       align-items: center;
@@ -2229,8 +2247,10 @@ INDEX_HTML = r"""<!doctype html>
     }
 
     .stat-icon svg { width: 18px; height: 18px; color: var(--primary); }
-    .stat-card:nth-child(2) .stat-icon svg { color: var(--warning); }
-    .stat-card:nth-child(3) .stat-icon svg { color: var(--success); }
+    .stat-card:nth-child(2) .stat-icon { background: #fef3c7; }
+    .stat-card:nth-child(2) .stat-icon svg { color: #f59e0b; }
+    .stat-card:nth-child(3) .stat-icon { background: #d1fae5; }
+    .stat-card:nth-child(3) .stat-icon svg { color: #10b981; }
 
     .toolbar {
       background: var(--surface);
@@ -2242,6 +2262,7 @@ INDEX_HTML = r"""<!doctype html>
       gap: 12px;
       flex-wrap: wrap;
       align-items: center;
+      box-shadow: var(--shadow-sm);
     }
 
     .toolbar select, .toolbar input {
@@ -2269,6 +2290,7 @@ INDEX_HTML = r"""<!doctype html>
       border: 1px solid var(--border);
       border-radius: 12px;
       overflow: hidden;
+      box-shadow: var(--shadow-sm);
     }
 
     .table-scroll { overflow-x: auto; }
@@ -2287,31 +2309,31 @@ INDEX_HTML = r"""<!doctype html>
       text-transform: uppercase;
       letter-spacing: .6px;
       color: var(--text-muted);
-      background: rgba(10,14,23,0.4);
+      background: #f8fafc;
       border-bottom: 1px solid var(--border);
       white-space: nowrap;
     }
 
     td {
       padding: 12px 16px;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid #f1f5f9;
       color: var(--text-secondary);
     }
 
-    tr:hover td { background: rgba(255,255,255,0.015); }
+    tr:hover td { background: #f8fafc; }
 
     .row-active td {
-      background: rgba(16,185,129,0.04) !important;
-      outline: 1px solid rgba(16,185,129,0.2);
+      background: #f0fdf4 !important;
+      outline: 1px solid rgba(16,185,129,0.3);
       outline-offset: -1px;
     }
 
     .mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text); }
 
     .latency { font-weight: 600; font-size: 12px; padding: 2px 6px; border-radius: 4px; }
-    .latency-fast { background: var(--success-bg); color: var(--success); }
-    .latency-mid { background: var(--warning-bg); color: var(--warning); }
-    .latency-slow { background: var(--danger-bg); color: var(--danger); }
+    .latency-fast { background: var(--success-bg); color: #059669; }
+    .latency-mid { background: var(--warning-bg); color: #d97706; }
+    .latency-slow { background: var(--danger-bg); color: #dc2626; }
 
     .table-actions { display: flex; gap: 6px; }
     .btn-sm {
@@ -2319,10 +2341,9 @@ INDEX_HTML = r"""<!doctype html>
     }
 
     .fav-btn { color: #f59e0b; border-color: rgba(245,158,11,0.3); }
-    .fav-btn:hover { background: rgba(245,158,11,0.15); }
-    .fav-btn.active { background: rgba(245,158,11,0.2); }
+    .fav-btn:hover { background: rgba(245,158,11,0.1); }
+    .fav-btn.active { background: rgba(245,158,11,0.15); }
 
-    /* Pagination */
     .pagination {
       display: flex;
       justify-content: space-between;
@@ -2339,7 +2360,6 @@ INDEX_HTML = r"""<!doctype html>
     .page-btn { height: 30px; padding: 0 10px; font-size: 12px; }
     .page-num { color: var(--text); font-weight: 600; }
 
-    /* Dropdown */
     .dropdown { position: relative; display: inline-block; }
     .dropdown-content {
       display: none;
@@ -2350,7 +2370,7 @@ INDEX_HTML = r"""<!doctype html>
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 8px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.4);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.12);
       z-index: 200;
       overflow: hidden;
     }
@@ -2364,16 +2384,15 @@ INDEX_HTML = r"""<!doctype html>
       font-size: 13px;
       transition: background .15s;
     }
-    .dropdown-content a:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+    .dropdown-content a:hover { background: #f8fafc; color: var(--text); }
     .dropdown.open .dropdown-content { display: block; }
 
-    /* Modal */
     .modal {
       display: none;
       position: fixed;
       inset: 0;
       z-index: 1000;
-      background: rgba(0,0,0,0.6);
+      background: rgba(0,0,0,0.3);
       align-items: center;
       justify-content: center;
     }
@@ -2386,6 +2405,7 @@ INDEX_HTML = r"""<!doctype html>
       width: 90%;
       max-width: 480px;
       padding: 28px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.12);
       animation: fadeIn .2s ease;
     }
 
@@ -2411,7 +2431,7 @@ INDEX_HTML = r"""<!doctype html>
       width: 28px; height: 28px; border-radius: 6px;
       display: flex; align-items: center; justify-content: center;
     }
-    .modal-close:hover { background: var(--surface-2); color: var(--text); }
+    .modal-close:hover { background: #f1f5f9; color: var(--text); }
 
     .form-group { margin-bottom: 18px; }
     .form-label {
@@ -2425,7 +2445,7 @@ INDEX_HTML = r"""<!doctype html>
     .form-input {
       width: 100%;
       height: 40px;
-      background: var(--bg);
+      background: #f8fafc;
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 0 12px;
@@ -2435,12 +2455,12 @@ INDEX_HTML = r"""<!doctype html>
       outline: none;
     }
 
-    .form-input:focus { border-color: var(--primary); }
+    .form-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
 
     .form-select {
       width: 100%;
       height: 40px;
-      background: var(--bg);
+      background: #f8fafc;
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 0 10px;
@@ -2465,7 +2485,7 @@ INDEX_HTML = r"""<!doctype html>
       background: var(--danger-bg);
       border: 1px solid rgba(239,68,68,0.2);
       border-radius: 6px;
-      color: var(--danger);
+      color: #dc2626;
       font-size: 13px;
       margin-bottom: 16px;
       display: none;
@@ -2476,7 +2496,7 @@ INDEX_HTML = r"""<!doctype html>
       background: var(--success-bg);
       border: 1px solid rgba(16,185,129,0.2);
       border-radius: 6px;
-      color: var(--success);
+      color: #059669;
       font-size: 13px;
       margin-bottom: 16px;
       display: none;
@@ -2492,7 +2512,7 @@ INDEX_HTML = r"""<!doctype html>
     }
 
     .option-card {
-      background: var(--bg);
+      background: #f8fafc;
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 10px 12px;
@@ -2504,7 +2524,7 @@ INDEX_HTML = r"""<!doctype html>
     .option-card:hover { border-color: var(--border-light); }
     .option-card.active {
       border-color: var(--primary);
-      background: rgba(99,102,241,0.06);
+      background: #eef2ff;
     }
 
     .option-card-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
@@ -2516,6 +2536,7 @@ INDEX_HTML = r"""<!doctype html>
       border-radius: 12px;
       padding: 20px;
       margin-bottom: 16px;
+      box-shadow: var(--shadow-sm);
     }
 
     .checkbox-row {
@@ -2546,7 +2567,7 @@ INDEX_HTML = r"""<!doctype html>
     @media (max-width: 576px) { .vps-grid { grid-template-columns: 1fr; } }
 
     .vps-card {
-      background: var(--bg);
+      background: #f8fafc;
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 16px;
@@ -2565,8 +2586,8 @@ INDEX_HTML = r"""<!doctype html>
       letter-spacing: .5px;
     }
 
-    .tag-green { background: var(--success-bg); color: var(--success); border: 1px solid rgba(16,185,129,0.2); }
-    .tag-blue { background: rgba(99,102,241,0.1); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.2); }
+    .tag-green { background: var(--success-bg); color: #059669; border: 1px solid rgba(16,185,129,0.2); }
+    .tag-blue { background: #eef2ff; color: #6366f1; border: 1px solid rgba(99,102,241,0.2); }
 
     .vps-desc { font-size: 13px; color: var(--text-muted); line-height: 1.5; flex: 1; }
 
@@ -2587,7 +2608,7 @@ INDEX_HTML = r"""<!doctype html>
     .vps-link:hover { border-color: var(--primary); color: var(--primary); }
 
     .log-container {
-      background: #05080f;
+      background: #f8fafc;
       border: 1px solid var(--border);
       border-radius: 10px;
       height: 380px;
@@ -2598,7 +2619,7 @@ INDEX_HTML = r"""<!doctype html>
       line-height: 1.6;
       white-space: pre-wrap;
       word-break: break-all;
-      color: #a5b4fc;
+      color: #6366f1;
       margin-bottom: 16px;
     }
 
@@ -2615,99 +2636,39 @@ INDEX_HTML = r"""<!doctype html>
     .active-card-info { display: flex; align-items: center; gap: 16px; }
     .active-card-value { font-size: 24px; font-weight: 700; color: var(--text); }
     .badge-pulse { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 1.5s infinite; display: inline-block; }
-    .available { background: var(--success-bg); color: var(--success); border-color: rgba(16,185,129,0.2); }
-    .unavailable { background: var(--danger-bg); color: var(--danger); border-color: rgba(239,68,68,0.2); }
-    .not_checked { background: var(--warning-bg); color: var(--warning); border-color: rgba(245,158,11,0.2); }
+    .available { background: var(--success-bg); color: #059669; border-color: rgba(16,185,129,0.2); }
+    .unavailable { background: var(--danger-bg); color: #dc2626; border-color: rgba(239,68,68,0.2); }
+    .not_checked { background: var(--warning-bg); color: #d97706; border-color: rgba(245,158,11,0.2); }
     .btn-group { display: flex; gap: 8px; }
-    .btn-telegram { background: rgba(43,162,223,0.15); border: 1px solid rgba(43,162,223,0.3); color: #2ba2df; height: 34px; padding: 0 14px; border-radius: 8px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
-    .btn-telegram:hover { background: rgba(43,162,223,0.25); border-color: rgba(43,162,223,0.5); color: #2ba2df; }
+    .btn-telegram { background: #e0f2fe; border: 1px solid rgba(14,165,233,0.3); color: #0284c7; height: 34px; padding: 0 14px; border-radius: 8px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+    .btn-telegram:hover { background: #bae6fd; border-color: rgba(14,165,233,0.5); color: #0369a1; }
     .connect-btn { height: 28px; padding: 0 10px; font-size: 12px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: all .15s; border: 1px solid var(--border); background: transparent; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 4px; }
     .connect-btn:hover { border-color: var(--primary); color: var(--primary); }
     .test-btn { height: 28px; padding: 0 10px; font-size: 12px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: all .15s; border: 1px solid var(--border); background: transparent; color: var(--success); display: inline-flex; align-items: center; gap: 4px; }
     .test-btn:hover { background: var(--success); color: #fff; border-color: transparent; }
     .connect-btn:disabled, .test-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-    .modal-content { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; width: 90%; max-width: 480px; padding: 28px; animation: modalFadeIn .2s ease; }
+    .modal-content { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; width: 90%; max-width: 480px; padding: 28px; box-shadow: 0 20px 60px rgba(0,0,0,0.12); animation: modalFadeIn .2s ease; }
     .modal-content .btn-primary { height: 38px; padding: 0 18px; }
-    .input-field { width: 100%; height: 40px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0 12px; color: var(--text); font-family: inherit; font-size: 14px; outline: none; }
-    .input-field:focus { border-color: var(--primary); }
+    .input-field { width: 100%; height: 40px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 0 12px; color: var(--text); font-family: inherit; font-size: 14px; outline: none; }
+    .input-field:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
     .vps-links { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
-    .vps-item { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .vps-item { background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
     .vps-tag { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 5px; width: fit-content; text-transform: uppercase; letter-spacing: .5px; }
-    .tag-normal { background: rgba(99,102,241,0.1); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.2); }
-    .tag-premium { background: var(--success-bg); color: var(--success); border: 1px solid rgba(16,185,129,0.2); }
+    .tag-normal { background: #eef2ff; color: #6366f1; border: 1px solid rgba(99,102,241,0.2); }
+    .tag-premium { background: var(--success-bg); color: #059669; border: 1px solid rgba(16,185,129,0.2); }
     .vps-desc { font-size: 13px; color: var(--text-muted); line-height: 1.5; flex: 1; }
     .vps-btn { display: block; text-align: center; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 12px; font-weight: 600; transition: all .15s; }
     .vps-btn:hover { border-color: var(--primary); color: var(--primary); }
     .vps-footer { padding-top: 12px; font-size: 13px; color: var(--text-muted); text-align: center; }
     .forum-link { color: var(--primary); font-weight: 600; text-decoration: none; }
-    .forum-link:hover { color: #a5b4fc; text-decoration: underline; }
+    .forum-link:hover { color: #4f46e5; text-decoration: underline; }
     .latency-val { font-weight: 600; font-size: 12px; padding: 2px 6px; border-radius: 4px; }
-    .latency-good { background: var(--success-bg); color: var(--success); }
-    .latency-medium { background: var(--warning-bg); color: var(--warning); }
-    .latency-poor { background: var(--danger-bg); color: var(--danger); }
+    .latency-good { background: var(--success-bg); color: #059669; }
+    .latency-medium { background: var(--warning-bg); color: #d97706; }
+    .latency-poor { background: var(--danger-bg); color: #dc2626; }
     @media (max-width: 576px) { .vps-links { grid-template-columns: 1fr; } }
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     @keyframes modalFadeIn { from { transform: scale(0.97); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-  </style>
-</head>
-      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
-      background: rgba(15, 23, 42, 0.6);
-    }
-    select option {
-      background-color: #0f172a;
-      color: #f8fafc;
-    }
-    
-    /* Option Card Styles for Proxy/Routing Settings */
-    .option-group {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin-top: 6px;
-    }
-    
-    @media (max-width: 480px) {
-      .option-group {
-        grid-template-columns: 1fr;
-      }
-    }
-    
-    .option-card {
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid var(--border-color);
-      border-radius: 10px;
-      padding: 12px 14px;
-      cursor: pointer;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      user-select: none;
-      position: relative;
-      text-align: left;
-    }
-    
-    .option-card:hover {
-      background: rgba(255, 255, 255, 0.05);
-      border-color: rgba(99, 102, 241, 0.25);
-      transform: translateY(-1px);
-    }
-    
-    .option-card.active {
-      background: rgba(99, 102, 241, 0.08);
-      border-color: var(--primary);
-      box-shadow: 0 0 12px rgba(99, 102, 241, 0.15);
-    }
-    
-    .option-card-title {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-primary);
-      margin-bottom: 4px;
-    }
-    
-    .option-card-desc {
-      font-size: 11px;
-      color: var(--text-secondary);
-      line-height: 1.3;
-    }
   </style>
 </head>
 <body>
@@ -2722,7 +2683,7 @@ INDEX_HTML = r"""<!doctype html>
   <div class="btn-group">
 
     <div class="dropdown">
-      <button id="github_btn" class="btn-primary" style="background: rgba(255, 255, 255, 0.08); border: 1px solid var(--border-color); color: var(--text-primary);">
+      <button id="github_btn" class="btn-primary" style="background: #f8fafc; border: 1px solid var(--border-color); color: var(--text-primary);">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: middle; margin-right: 4px;"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
         GITHUB
         <svg xmlns="http://www.w3.org/2000/svg" style="width:12px; height:12px; margin-left: 2px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
@@ -2741,7 +2702,7 @@ INDEX_HTML = r"""<!doctype html>
       更新节点
     </button>
     <div class="dropdown">
-      <button id="admin_btn" class="btn-primary" style="background: rgba(255, 255, 255, 0.08); border: 1px solid var(--border-color); color: var(--text-primary);">
+      <button id="admin_btn" class="btn-primary" style="background: #f8fafc; border: 1px solid var(--border-color); color: var(--text-primary);">
         <svg xmlns="http://www.w3.org/2000/svg" style="width:16px; height:16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
         管理员
         <svg xmlns="http://www.w3.org/2000/svg" style="width:12px; height:12px; margin-left: 2px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
@@ -2763,7 +2724,7 @@ INDEX_HTML = r"""<!doctype html>
           <svg xmlns="http://www.w3.org/2000/svg" style="width:14px; height:14px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
           日志
         </a>
-        <a href="javascript:void(0)" onclick="logoutAdmin()" style="color: var(--danger); border-top: 1px solid rgba(255,255,255,0.05);">
+        <a href="javascript:void(0)" onclick="logoutAdmin()" style="color: var(--danger); border-top: 1px solid var(--border);">
           <svg xmlns="http://www.w3.org/2000/svg" style="width:14px; height:14px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
           退出
         </a>
@@ -2801,7 +2762,7 @@ INDEX_HTML = r"""<!doctype html>
       收藏菜单
     </button>
   </section>
-  <div id="favorites_panel" style="display: none; background: rgba(22, 30, 49, 0.85); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px; margin-bottom: 20px; animation: modalFadeIn 0.25s ease-out;">
+  <div id="favorites_panel" style="display: none; background: #ffffff; border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
     <div style="display: flex; flex-direction: column; gap: 16px;">
       <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
         <div style="display: flex; flex-direction: column; gap: 4px;">
@@ -2819,7 +2780,7 @@ INDEX_HTML = r"""<!doctype html>
         </div>
       </div>
       
-      <div style="border-top: 1px solid rgba(255,255,255,0.06); padding-top: 16px;">
+      <div style="border-top: 1px solid var(--border); padding-top: 16px;">
         <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; user-select: none;">
           <input type="checkbox" id="fav_fail_fallback_checkbox" style="margin-top: 3px; cursor: pointer;" onchange="handleFavFallbackChange(this.checked)" checked />
           <div style="display: flex; flex-direction: column; gap: 2px;">
@@ -2840,11 +2801,12 @@ INDEX_HTML = r"""<!doctype html>
         <thead>
           <tr>
             <th style="width: 90px;">状态</th>
-            <th style="width: 220px;">IP 地址 : 端口</th>
+            <th style="width: 160px;">IP 地址 : 端口</th>
             <th>物理位置</th>
             <th>运营主体 / ISP</th>
-            <th style="width: 110px;">IP 类型</th>
-            <th style="width: 180px;">操作</th>
+            <th style="width: 80px;">IP 类型</th>
+            <th style="width: 80px;">延迟</th>
+            <th style="width: 160px;">操作</th>
           </tr>
         </thead>
         <tbody id="rows"></tbody>
@@ -2876,7 +2838,7 @@ INDEX_HTML = r"""<!doctype html>
           <svg xmlns="http://www.w3.org/2000/svg" style="width:20px; height:20px; color: var(--primary);" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
           网页安全
         </h3>
-        <button type="button" onclick="closeCredentialsModal()" style="background: transparent; border: none; padding: 4px; cursor: pointer; color: var(--text-secondary); width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
+        <button type="button" onclick="closeCredentialsModal()" style="background: transparent; border: none; padding: 4px; cursor: pointer; color: var(--text-secondary); width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
           <svg xmlns="http://www.w3.org/2000/svg" style="width:18px; height:18px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
         </button>
       </div>
@@ -2921,7 +2883,7 @@ INDEX_HTML = r"""<!doctype html>
           <svg xmlns="http://www.w3.org/2000/svg" style="width:20px; height:20px; color: var(--primary);" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
           代理设置
         </h3>
-        <button type="button" onclick="closeNetworkModal()" style="background: transparent; border: none; padding: 4px; cursor: pointer; color: var(--text-secondary); width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
+        <button type="button" onclick="closeNetworkModal()" style="background: transparent; border: none; padding: 4px; cursor: pointer; color: var(--text-secondary); width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
           <svg xmlns="http://www.w3.org/2000/svg" style="width:18px; height:18px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
         </button>
       </div>
@@ -2935,7 +2897,7 @@ INDEX_HTML = r"""<!doctype html>
           <input type="number" id="net_proxy_port" class="input-field" required min="1024" max="65535" placeholder="7928">
         </div>
 
-        <div style="border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 16px; margin-bottom: 16px;">
+        <div style="border-top: 1px dashed var(--border); padding-top: 16px; margin-bottom: 16px;">
           <div class="form-group" style="margin-bottom: 16px;">
             <label class="form-label">IP 出站路由模式</label>
             <input type="hidden" id="net_routing_mode" value="auto">
@@ -2957,7 +2919,7 @@ INDEX_HTML = r"""<!doctype html>
           
           <div id="net_force_country_group" class="form-group" style="margin-bottom: 16px; display: none;">
             <label class="form-label" for="net_force_country">锁定国家地区</label>
-            <select id="net_force_country" class="input-field" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); color: var(--text-primary); outline: none; cursor: pointer; width: 100%; height: 40px; border-radius: 8px; padding: 0 12px;">
+            <select id="net_force_country" class="input-field" style="background: #f8fafc; border: 1px solid var(--border-color); color: var(--text-primary); outline: none; cursor: pointer; width: 100%; height: 40px; border-radius: 8px; padding: 0 12px;">
               <option value="">正在加载节点国家...</option>
             </select>
           </div>
@@ -2981,7 +2943,7 @@ INDEX_HTML = r"""<!doctype html>
             </div>
           </div>
           
-          <div id="net_routing_warning" style="font-size: 12px; color: var(--text-secondary); line-height: 1.4; padding: 8px 12px; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 6px; margin-top: 8px;">
+          <div id="net_routing_warning" style="font-size: 12px; color: var(--text-secondary); line-height: 1.4; padding: 8px 12px; background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; margin-top: 8px;">
             ℹ️ <strong>自动配置</strong>：全自动测试并选择最佳IP。在使用过程中，如果当前连接节点没有失效，将不再更换IP；如果当前节点失效，系统将立刻秒级自动漂移到其他最快的可用节点。
           </div>
         </div>
@@ -2995,51 +2957,6 @@ INDEX_HTML = r"""<!doctype html>
   </div>
 
 
-  <!-- VPS 购买推荐 Modal -->
-  <div id="vps_recommend_modal" class="modal">
-    <div class="modal-content" style="max-width: 640px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-        <h3 style="margin: 0; font-size: 18px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
-          <svg xmlns="http://www.w3.org/2000/svg" style="width:20px; height:20px; color: var(--warning);" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364.364l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
-          VPS 购买推荐
-        </h3>
-        <button type="button" onclick="closeVpsModal()" style="background: transparent; border: none; padding: 4px; cursor: pointer; color: var(--text-secondary); width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
-          <svg xmlns="http://www.w3.org/2000/svg" style="width:18px; height:18px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-        </button>
-      </div>
-      
-      <div class="vps-links">
-        <div class="vps-item">
-          <span class="vps-tag tag-normal">RNVPS (RackNerd) 推荐</span>
-          <span class="vps-desc">超低折扣价格，性价比极高，日常使用实惠方便，海外多机房可选，非常适合普通大众用户。</span>
-          <a href="https://my.racknerd.com/aff.php?aff=18708" target="_blank" class="vps-btn">点击进入官网</a>
-        </div>
-        <div class="vps-item">
-          <span class="vps-tag tag-premium">搬瓦工 (Bandwagon) 推荐</span>
-          <span class="vps-desc">直连三网顶级专线，经典高带宽 CN2 GIA/9929 优化线路，极致速度且超凡稳定，高端用户首选。</span>
-          <a href="https://bandwagonhost.com/aff.php?aff=81790" target="_blank" class="vps-btn">点击进入官网</a>
-        </div>
-      </div>
-      
-      <div class="vps-footer" style="margin-top: 20px;">
-        官方技术支持及优质资源交流论坛：<a href="https://339936.xyz" target="_blank" class="forum-link">339936.xyz</a>
-      </div>
-
-      <div class="vps-footer" style="margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 16px; text-align: left; font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
-        <div style="font-weight: bold; color: var(--text-primary); margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
-          <svg xmlns="http://www.w3.org/2000/svg" style="width:16px; height:16px; color: var(--primary);" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          🎁 捐赠支持项目开发：
-        </div>
-        <div style="font-family: monospace; background: rgba(0,0,0,0.2); padding: 8px 12px; border-radius: 6px; margin-top: 6px; word-break: break-all; select-all: true;">
-          <span style="color: var(--primary); font-weight: bold;">BNB (BSC):</span> 0xB6d78c42CEB0687A31B8cfEBE4b51b6eB8953C17<br>
-          <span style="color: var(--primary); font-weight: bold;">TRX (TRC20):</span> TSdzCW6JvsrqcppodYjhSrku4mYmDJ9pxf
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="vps-recommend-tab" onclick="openVpsModal()">VPS购买推荐</div>
-
   <!-- Gateway Modal (网关自检与代理测试) -->
   <div id="gateway_modal" class="modal">
     <div class="modal-content" style="max-width: 600px; width: 90%;">
@@ -3048,7 +2965,7 @@ INDEX_HTML = r"""<!doctype html>
           <svg xmlns="http://www.w3.org/2000/svg" style="width:20px; height:20px; color: var(--primary);" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
           网关设置与自检
         </h3>
-        <button type="button" onclick="closeGatewayModal()" style="background: transparent; border: none; padding: 4px; cursor: pointer; color: var(--text-secondary); width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
+        <button type="button" onclick="closeGatewayModal()" style="background: transparent; border: none; padding: 4px; cursor: pointer; color: var(--text-secondary); width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
           <svg xmlns="http://www.w3.org/2000/svg" style="width:18px; height:18px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
         </button>
       </div>
@@ -3062,10 +2979,10 @@ INDEX_HTML = r"""<!doctype html>
       </div>
 
       <!-- 分割线 -->
-      <div style="border-top: 1px dashed rgba(255, 255, 255, 0.08); margin: 20px 0;"></div>
+      <div style="border-top: 1px dashed var(--border); margin: 20px 0;"></div>
 
       <!-- 本地代理出口检测 -->
-      <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px;">
+      <div style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: 12px; padding: 16px;">
         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
           <div class="stat-icon-wrapper" style="background: rgba(99, 102, 241, 0.1); border-color: rgba(99, 102, 241, 0.2); width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0;">
             <svg xmlns="http://www.w3.org/2000/svg" class="stat-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="color: var(--primary); width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071a10.5 10.5 0 0114.14 0M1.414 8.05a16 16 0 0121.172 0" /></svg>
@@ -3111,7 +3028,7 @@ INDEX_HTML = r"""<!doctype html>
         
         <div style="display: flex; align-items: center; gap: 10px; margin-left: auto;">
           <label class="form-label" for="log_filter_select" style="margin: 0; font-size: 13px; color: var(--text-secondary);">日志筛选:</label>
-          <select id="log_filter_select" class="input-field" style="width: 140px; height: 32px; font-size: 12px; border-radius: 6px; padding: 0 8px; background: rgba(255, 255, 255, 0.03);" onchange="filterAndRenderLogs()">
+          <select id="log_filter_select" class="input-field" style="width: 140px; height: 32px; font-size: 12px; border-radius: 6px; padding: 0 8px; background: #f8fafc;" onchange="filterAndRenderLogs()">
             <option value="all">全部日志</option>
             <option value="proxy">代理相关 (Proxy)</option>
             <option value="vpn">VPN 连接 (VPN)</option>
@@ -3119,13 +3036,13 @@ INDEX_HTML = r"""<!doctype html>
           </select>
         </div>
         
-        <button type="button" onclick="closeLogsModal()" style="background: transparent; border: none; padding: 4px; cursor: pointer; color: var(--text-secondary); width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
+        <button type="button" onclick="closeLogsModal()" style="background: transparent; border: none; padding: 4px; cursor: pointer; color: var(--text-secondary); width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
           <svg xmlns="http://www.w3.org/2000/svg" style="width:18px; height:18px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
         </button>
       </div>
 
       <!-- Terminal Log Container -->
-      <div id="log_terminal_container" style="background: #050811; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 10px; height: 400px; padding: 16px; overflow-y: auto; font-family: 'JetBrains Mono', Consolas, Courier, monospace; font-size: 12px; line-height: 1.5; text-align: left; white-space: pre-wrap; word-break: break-all; color: #a5b4fc; box-shadow: inset 0 4px 20px rgba(0,0,0,0.8); position: relative; margin-bottom: 20px;">
+      <div id="log_terminal_container" style="background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; height: 400px; padding: 16px; overflow-y: auto; font-family: 'JetBrains Mono', Consolas, Courier, monospace; font-size: 12px; line-height: 1.5; text-align: left; white-space: pre-wrap; word-break: break-all; color: #6366f1; box-shadow: inset 0 2px 8px rgba(0,0,0,0.04); position: relative; margin-bottom: 20px;">
         <div style="color: var(--text-secondary); text-align: center; margin-top: 150px;">
           暂无今日运行日志记录。
         </div>
@@ -3133,11 +3050,11 @@ INDEX_HTML = r"""<!doctype html>
 
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; gap: 8px;">
-          <button type="button" onclick="copyLogContent()" class="btn-primary" style="height: 38px; padding: 0 16px; background: rgba(255,255,255,0.05); color: var(--text-primary); border: 1px solid var(--border-color);">
-            <svg xmlns="http://www.w3.org/2000/svg" style="width:14px; height:14px; margin-right: 4px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
-            一键复制
-          </button>
-          <button type="button" onclick="exportLogContent()" class="btn-primary" style="height: 38px; padding: 0 16px; background: rgba(255,255,255,0.05); color: var(--text-primary); border: 1px solid var(--border-color);">
+<button type="button" onclick="copyLogContent()" class="btn-primary" style="height: 38px; padding: 0 16px; background: #f8fafc; color: var(--text-primary); border: 1px solid var(--border-color);">
+          <svg xmlns="http://www.w3.org/2000/svg" style="width:14px; height:14px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+          复制日志
+        </button>
+        <button type="button" onclick="exportLogContent()" class="btn-primary" style="height: 38px; padding: 0 16px; background: #f8fafc; color: var(--text-primary); border: 1px solid var(--border-color);">
             <svg xmlns="http://www.w3.org/2000/svg" style="width:14px; height:14px; margin-right: 4px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
             导出日志
           </button>
@@ -3467,7 +3384,7 @@ function render(){
 
   // Render table rows
   if (currentPageNodes.length === 0) {
-    $("rows").innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-secondary); padding: 40px 0;">未找到符合过滤条件的备选节点。</td></tr>`;
+    $("rows").innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-secondary); padding: 40px 0;">未找到符合过滤条件的备选节点。</td></tr>`;
   } else {
     $("rows").innerHTML=currentPageNodes.map(n=>{
       if (!n) return '';
@@ -3504,6 +3421,7 @@ function render(){
         <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${esc(displayLocation)}">${esc(displayLocation)}</td>
         <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${esc(n.owner||n.as_name||"-")}">${esc(n.owner||n.as_name||"-")}</td>
         <td style="white-space: nowrap; max-width: 110px; overflow: hidden; text-overflow: ellipsis;" title="${esc(translateIpType(n.ip_type))}">${esc(translateIpType(n.ip_type))}</td>
+        <td style="white-space: nowrap;">${latencyText}</td>
         <td>
           <div class="table-actions">
             ${favBtn}
@@ -3814,7 +3732,7 @@ function updateFavPanelUI() {
         favRoutingBtn.style.boxShadow = "0 0 12px rgba(244, 63, 94, 0.3)";
       } else {
         favRoutingBtn.textContent = "启用仅用收藏出站";
-        favRoutingBtn.style.background = "rgba(255,255,255,0.03)";
+        favRoutingBtn.style.background = "#f1f5f9";
         favRoutingBtn.style.borderColor = "var(--border-color)";
         favRoutingBtn.style.color = "var(--text-primary)";
         favRoutingBtn.style.boxShadow = "none";
@@ -3951,8 +3869,8 @@ function handleRoutingModeChange(mode) {
   } else {
     countryGroup.style.display = "none";
     warningDiv.style.color = "var(--text-secondary)";
-    warningDiv.style.background = "rgba(255, 255, 255, 0.02)";
-    warningDiv.style.border = "1px solid rgba(255, 255, 255, 0.05)";
+    warningDiv.style.background = "#f8fafc";
+    warningDiv.style.border = "1px solid var(--border)";
     warningDiv.innerHTML = `ℹ️ <strong>自动配置</strong>：全自动测试并选择最佳IP。在使用过程中，如果当前连接节点没有失效，将不再更换IP；如果当前节点失效，系统将立刻秒级自动漂移到其他最快的可用节点。`;
   }
 }
@@ -4197,14 +4115,6 @@ async function saveNetwork(e) {
 
 
 
-function openVpsModal() {
-  $("vps_recommend_modal").style.display = "flex";
-}
-
-function closeVpsModal() {
-  $("vps_recommend_modal").style.display = "none";
-}
-
 async function logoutAdmin() {
   try {
     const res = await fetch("./api/logout", { method: "POST" });
@@ -4275,7 +4185,7 @@ function renderGatewayServices(services) {
     const statusPulse = s.status === "running" ? '<span class="badge-pulse"></span>' : '';
     
     html += `
-      <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px 16px; display: flex; flex-direction: column; gap: 6px;">
+      <div style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: 10px; padding: 12px 16px; display: flex; flex-direction: column; gap: 6px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <strong style="font-size: 14px; color: var(--text-primary);">${esc(s.name)}</strong>
           <span class="badge ${badgeClass}">${statusPulse}${statusText}</span>
