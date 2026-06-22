@@ -1789,90 +1789,152 @@ LOGIN_HTML = r"""<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AimiliVPN - 安全登录</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #f0f4f8;
-      height: 100vh;
+      min-height: 100vh;
+      overflow: hidden;
+      background: linear-gradient(135deg, #eef2ff 0%, #fdf2f8 50%, #ecfeff 100%);
+      position: relative;
+    }
+
+    /* Blob decorations */
+    .login-blob {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.6;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .login-blob:nth-child(1) { width: 400px; height: 400px; background: rgba(99,102,241,0.35); top: -120px; left: -80px; animation: blobFloat1 12s ease-in-out infinite; }
+    .login-blob:nth-child(2) { width: 320px; height: 320px; background: rgba(236,72,153,0.30); top: 60%; right: -60px; animation: blobFloat2 10s ease-in-out infinite; }
+    .login-blob:nth-child(3) { width: 280px; height: 280px; background: rgba(20,184,166,0.25); bottom: -80px; left: 30%; animation: blobFloat3 14s ease-in-out infinite; }
+    .login-blob:nth-child(4) { width: 200px; height: 200px; background: rgba(251,191,36,0.20); top: 30%; left: 15%; animation: blobFloat4 9s ease-in-out infinite; }
+    .login-blob:nth-child(5) { width: 240px; height: 240px; background: rgba(56,189,248,0.25); top: 10%; right: 20%; animation: blobFloat5 11s ease-in-out infinite; }
+
+    @keyframes blobFloat1 { 0%,100%{transform:translate(0,0)scale(1)} 33%{transform:translate(60px,-40px)scale(1.08)} 66%{transform:translate(-30px,20px)scale(0.95)} }
+    @keyframes blobFloat2 { 0%,100%{transform:translate(0,0)scale(1)} 50%{transform:translate(-50px,-60px)scale(1.05)} }
+    @keyframes blobFloat3 { 0%,100%{transform:translate(0,0)scale(1)} 33%{transform:translate(40px,30px)scale(1.1)} 66%{transform:translate(-20px,-20px)scale(0.9)} }
+    @keyframes blobFloat4 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(30px,-30px)} }
+    @keyframes blobFloat5 { 0%,100%{transform:translate(0,0)scale(1)} 50%{transform:translate(-30px,20px)scale(0.9)} }
+
+    .login-grid {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image: radial-gradient(circle, rgba(99,102,241,0.04) 1px, transparent 1px);
+      background-size: 32px 32px;
+      -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
+      mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
+    }
+
+    .login-container {
+      position: relative; z-index: 1;
+      min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
+      padding: 24px 16px;
     }
 
+    .login-toolbar {
+      position: fixed; top: 20px; right: 24px; z-index: 10;
+      display: inline-flex; align-items: center; gap: 10px;
+    }
+    .login-toolbar button {
+      width: 40px; height: 40px; min-width: 40px;
+      border-radius: 50%; padding: 0;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; border: none;
+      background: rgba(255,255,255,0.7);
+      backdrop-filter: blur(8px);
+      color: #64748b; font-size: 16px;
+      transition: all .2s;
+    }
+    .login-toolbar button:hover { background: #fff; color: #6366f1; box-shadow: 0 2px 8px rgba(99,102,241,0.15); }
+
     .login-card {
-      width: 380px;
-      background: #ffffff;
-      border-radius: 16px;
-      padding: 40px 32px;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04);
+      position: relative;
+      width: 100%;
+      max-width: 400px;
+      background: rgba(255,255,255,0.72);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid rgba(255,255,255,0.6);
+      border-radius: 20px;
+      padding: 40px 32px 32px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 18px 50px rgba(99,102,241,0.18);
+      z-index: 2;
     }
 
     .brand {
       text-align: center;
-      margin-bottom: 32px;
+      margin-bottom: 28px;
     }
-
-    .brand-icon {
-      width: 48px;
-      height: 48px;
-      background: #eef2ff;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto 16px;
-      color: #6366f1;
+    .brand-name {
+      font-size: 28px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #6366f1, #ec4899);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
     }
-
-    .brand h1 {
-      font-size: 22px;
-      font-weight: 700;
-      color: #1e293b;
-      margin-bottom: 6px;
-    }
-
-    .brand p {
+    .brand-sub {
       font-size: 14px;
       color: #94a3b8;
+      margin-top: 6px;
+    }
+
+    .welcome {
+      text-align: center;
+      font-size: 30px;
+      font-weight: 700;
+      margin-bottom: 28px;
+      color: #1e293b;
     }
 
     .form-group {
       margin-bottom: 20px;
     }
-
     label {
       display: block;
       font-size: 13px;
-      font-weight: 500;
+      font-weight: 600;
       color: #64748b;
       margin-bottom: 8px;
     }
-
-    input {
+    .input-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .input-wrap .input-icon {
+      position: absolute;
+      left: 14px;
+      color: #94a3b8;
+      font-size: 15px;
+      pointer-events: none;
+    }
+    .input-wrap input {
       width: 100%;
-      height: 44px;
-      background: var(--surface-2);
-      border: 1px solid #e2e8f0;
+      height: 46px;
+      padding: 0 14px 0 42px;
+      background: #fff;
+      border: 1.5px solid #e2e8f0;
       border-radius: 10px;
-      padding: 0 14px;
       color: #1e293b;
       font-family: inherit;
       font-size: 14px;
       outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s;
+      transition: border-color .2s, box-shadow .2s;
     }
-
-    input:focus {
+    .input-wrap input:focus {
       border-color: #6366f1;
       box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
     }
-
-    input::placeholder {
-      color: #cbd5e1;
-    }
+    .input-wrap input::placeholder { color: #cbd5e1; }
 
     .error-message {
       color: #ef4444;
@@ -1880,84 +1942,129 @@ LOGIN_HTML = r"""<!DOCTYPE html>
       margin-top: 8px;
       display: none;
     }
+    .error-message.show { display: block; }
 
-    button {
+    .login-btn {
       width: 100%;
-      height: 44px;
-      background: #6366f1;
+      height: 46px;
       border: none;
       border-radius: 10px;
+      background: linear-gradient(135deg, #6366f1, #7c3aed);
       color: #fff;
       font-family: inherit;
       font-size: 15px;
       font-weight: 600;
       cursor: pointer;
-      transition: background 0.2s, transform 0.1s;
+      transition: opacity .2s, transform .1s;
+      margin-top: 4px;
     }
-
-    button:hover {
-      background: #4f46e5;
-    }
-
-    button:active {
-      transform: scale(0.98);
-    }
-
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .error-message.show { display: block; }
+    .login-btn:hover { opacity: 0.9; }
+    .login-btn:active { transform: scale(0.98); }
+    .login-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
   </style>
 </head>
 <body>
-  <div class="login-card">
-    <div class="brand">
-      <div class="brand-icon">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-        </svg>
-      </div>
-      <h1>AimiliVPN</h1>
-      <p>请输入管理账号和密码登录</p>
-    </div>
+  <div class="login-blob"></div>
+  <div class="login-blob"></div>
+  <div class="login-blob"></div>
+  <div class="login-blob"></div>
+  <div class="login-blob"></div>
+  <div class="login-grid"></div>
 
-    <form id="login_form" onsubmit="handleLogin(event)">
-      <div class="form-group">
-        <label for="username">管理账号</label>
-        <input type="text" id="username" name="username" placeholder="请输入管理账号" required autocomplete="username">
+  <div class="login-toolbar">
+    <button id="login_theme_btn" onclick="cycleLoginTheme()" title="切换主题">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+    </button>
+  </div>
+
+  <div class="login-container">
+    <div class="login-card">
+      <div class="brand">
+        <div class="brand-name">AimiliVPN</div>
+        <div class="brand-sub">VPN 节点管理系统</div>
       </div>
-      <div class="form-group">
-        <label for="password">安全密码</label>
-        <input type="password" id="password" name="password" placeholder="请输入安全密码" required autocomplete="current-password">
-        <div id="error_text" class="error-message"></div>
-      </div>
-      <button type="submit" id="submit_btn">
-        <span>登录</span>
-      </button>
-    </form>
+      <div class="welcome">欢迎回来</div>
+
+      <form id="login_form" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label for="username">管理账号</label>
+          <div class="input-wrap">
+            <span class="input-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </span>
+            <input type="text" id="username" name="username" placeholder="请输入管理账号" required autocomplete="username">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="password">安全密码</label>
+          <div class="input-wrap">
+            <span class="input-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </span>
+            <input type="password" id="password" name="password" placeholder="请输入安全密码" required autocomplete="current-password">
+          </div>
+          <div id="error_text" class="error-message"></div>
+        </div>
+        <button type="submit" class="login-btn" id="submit_btn">
+          <span>登录</span>
+        </button>
+      </form>
+    </div>
   </div>
 
   <script>
+    function cycleLoginTheme() {
+      var html = document.documentElement;
+      var cur = html.getAttribute('data-login-theme') || 'light';
+      var next = cur === 'light' ? 'dark' : 'light';
+      html.setAttribute('data-login-theme', next);
+      if (next === 'dark') {
+        document.body.style.background = 'radial-gradient(ellipse at 25% 20%, #152038 0%, #0d1117 60%)';
+        document.querySelector('.login-card').style.background = 'rgba(28,30,36,0.55)';
+        document.querySelector('.login-card').style.borderColor = 'rgba(255,255,255,0.10)';
+        document.querySelector('.login-card').style.boxShadow = '0 1px 3px rgba(0,0,0,0.4), 0 20px 60px rgba(59,130,246,0.22)';
+        document.querySelector('.welcome').style.color = '#f1f5f9';
+        document.querySelector('.brand-sub').style.color = '#64748b';
+        document.querySelector('.brand-name').style.background = 'linear-gradient(135deg, #60a5fa, #1d4ed8)';
+        document.querySelector('.brand-name').style['-webkit-background-clip'] = 'text';
+        document.querySelector('.brand-name').style.backgroundClip = 'text';
+        document.querySelectorAll('.input-wrap input').forEach(function(i){i.style.background='#1a1b1f';i.style.color='#f1f5f9';i.style.borderColor='#334155'});
+        var btns = document.querySelectorAll('.login-toolbar button');
+        btns.forEach(function(b){b.style.background='rgba(255,255,255,0.08)';b.style.color='#94a3b8'});
+      } else {
+        document.body.style.background = 'linear-gradient(135deg, #eef2ff 0%, #fdf2f8 50%, #ecfeff 100%)';
+        document.querySelector('.login-card').style.background = 'rgba(255,255,255,0.72)';
+        document.querySelector('.login-card').style.borderColor = 'rgba(255,255,255,0.6)';
+        document.querySelector('.login-card').style.boxShadow = '0 1px 3px rgba(0,0,0,0.04), 0 18px 50px rgba(99,102,241,0.18)';
+        document.querySelector('.welcome').style.color = '#1e293b';
+        document.querySelector('.brand-sub').style.color = '#94a3b8';
+        document.querySelector('.brand-name').style.background = 'linear-gradient(135deg, #6366f1, #ec4899)';
+        document.querySelector('.brand-name').style['-webkit-background-clip'] = 'text';
+        document.querySelector('.brand-name').style.backgroundClip = 'text';
+        document.querySelectorAll('.input-wrap input').forEach(function(i){i.style.background='#fff';i.style.color='#1e293b';i.style.borderColor='#e2e8f0'});
+        var btns = document.querySelectorAll('.login-toolbar button');
+        btns.forEach(function(b){b.style.background='rgba(255,255,255,0.7)';b.style.color='#64748b'});
+      }
+    }
+
     async function handleLogin(e) {
       e.preventDefault();
-      const uname = document.getElementById("username").value.trim();
-      const pwd = document.getElementById("password").value.trim();
-      const errorText = document.getElementById("error_text");
-      const submitBtn = document.getElementById("submit_btn");
+      var uname = document.getElementById("username").value.trim();
+      var pwd = document.getElementById("password").value.trim();
+      var errorText = document.getElementById("error_text");
+      var submitBtn = document.getElementById("submit_btn");
 
       errorText.classList.remove("show");
       submitBtn.disabled = true;
       submitBtn.querySelector("span").textContent = "正在验证...";
 
       try {
-        const response = await fetch("./api/login", {
+        var response = await fetch("./api/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username: uname, password: pwd })
         });
-        const data = await response.json();
+        var data = await response.json();
         if (response.ok && data.ok) {
           window.location.reload();
         } else {
@@ -1990,7 +2097,7 @@ INDEX_HTML = r"""<!doctype html>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
-      --bg: #f1f5f9;
+      --bg: #e6e8ec;
       --surface: #ffffff;
       --surface-2: #f8fafc;
       --border: #e2e8f0;
@@ -2057,6 +2164,108 @@ INDEX_HTML = r"""<!doctype html>
     [data-theme="dark"] .stat-icon { background: #1a2236; }
     [data-theme="dark"] .card { background: var(--bg); }
 
+    /* === 3x-UI 侧边栏布局 === */
+    .app-layout { display: flex; min-height: 100vh; }
+
+    .sidebar {
+      width: 220px; min-width: 220px;
+      background: #15161a;
+      display: flex; flex-direction: column;
+      position: fixed; top: 0; left: 0; bottom: 0;
+      z-index: 200;
+      overflow-y: auto;
+    }
+    [data-theme="dark"] .sidebar { background: #15161a; }
+
+    .sidebar-brand {
+      padding: 18px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .sidebar-brand-name {
+      font-size: 20px; font-weight: 800;
+      background: linear-gradient(135deg, #6366f1, #a78bfa);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    [data-theme="dark"] .sidebar-brand-name {
+      background: linear-gradient(135deg, #60a5fa, #818cf8);
+      -webkit-background-clip: text;
+      background-clip: text;
+    }
+    .sidebar-brand-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #10b981;
+      animation: online-blink 1.1s ease-in-out infinite;
+    }
+    @keyframes online-blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 12px 10px;
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      color: rgba(255,255,255,0.6);
+      font-size: 13px; font-weight: 500;
+      text-decoration: none;
+      transition: all .15s;
+      cursor: pointer;
+    }
+    .nav-item:hover { background: rgba(255,255,255,0.06); color: #fff; }
+    .nav-item.active {
+      background: rgba(99,102,241,0.2);
+      color: #818cf8;
+    }
+    .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+    .sidebar-footer {
+      padding: 12px 10px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .sidebar-theme-btn {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px; border-radius: 8px;
+      color: rgba(255,255,255,0.5); font-size: 13px;
+      cursor: pointer; border: none; background: transparent;
+      width: 100%; font-family: inherit;
+      transition: all .15s;
+    }
+    .sidebar-theme-btn:hover { background: rgba(255,255,255,0.06); color: #fff; }
+
+    .content {
+      flex: 1;
+      margin-left: 220px;
+      background: var(--bg);
+      min-height: 100vh;
+    }
+
+    /* 移动端侧边栏 */
+    .mobile-menu-btn {
+      position: fixed; top: 12px; left: 12px; z-index: 300;
+      width: 38px; height: 38px; border-radius: 10px;
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text); cursor: pointer;
+      display: none; align-items: center; justify-content: center;
+      box-shadow: var(--shadow);
+    }
+    .sidebar-overlay {
+      display: none;
+      position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 199;
+    }
+
+    @media (max-width: 768px) {
+      .sidebar { transform: translateX(-100%); transition: transform .25s ease; }
+      .sidebar.open { transform: translateX(0); }
+      .sidebar-overlay.open { display: block; }
+      .content { margin-left: 0; }
+      .mobile-menu-btn { display: flex; }
+    }
+
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: var(--bg);
@@ -2066,17 +2275,12 @@ INDEX_HTML = r"""<!doctype html>
     }
 
     header {
-      padding: 14px 32px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
+      padding: 20px 28px;
+      background: transparent;
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 16px;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      box-shadow: var(--shadow-sm);
     }
 
     .brand h1 {
@@ -2169,10 +2373,9 @@ INDEX_HTML = r"""<!doctype html>
 
     button:disabled { opacity: 0.35; cursor: not-allowed; }
 
-    main {
-      padding: 20px 32px;
+    .content-body {
+      padding: 20px 28px;
       max-width: 1400px;
-      margin: 0 auto;
     }
 
     .active-card {
@@ -2504,7 +2707,7 @@ INDEX_HTML = r"""<!doctype html>
     @media (max-width: 768px) {
       header { flex-direction: column; align-items: flex-start; padding: 12px 20px; }
       .header-actions { width: 100%; flex-wrap: wrap; }
-      main { padding: 16px 20px; }
+      main { padding: 12px 12px; }
       .active-card { flex-direction: column; align-items: flex-start; }
       .option-group { grid-template-columns: 1fr; }
     }
@@ -2550,6 +2753,44 @@ INDEX_HTML = r"""<!doctype html>
   </style>
 </head>
 <body>
+<div class="app-layout">
+
+  <button class="mobile-menu-btn" id="mobile_menu_btn" onclick="toggleSidebar()">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+  </button>
+  <div class="sidebar-overlay" id="sidebar_overlay" onclick="toggleSidebar()"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-name">AimiliVPN</div>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item active" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+        概览
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+        节点管理
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        操作日志
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        设置
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="sidebar-theme-btn" id="sidebar_theme_btn" onclick="toggleSidebarTheme()">
+        <svg id="sidebar_theme_icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        <span id="sidebar_theme_label">明亮模式</span>
+      </button>
+    </div>
+  </aside>
+
+  <main class="content">
 <header>
   <div class="brand">
     <h1>
@@ -2629,8 +2870,8 @@ INDEX_HTML = r"""<!doctype html>
     </div>
   </div>
 </header>
-<main>
-  
+<div class="content-body">
+
     <!-- 当前连接活动节点卡片 -->
     <section class="active-node-section" id="active_node_card" style="margin-bottom: 24px;">
       <!-- Rendered dynamically by render() -->
@@ -2960,7 +3201,7 @@ INDEX_HTML = r"""<!doctype html>
       </div>
     </div>
   </div>
-</main>
+</div>
 <script>
 let nodes=[], state={}, testingNodeIds = new Set();
 let currentPage = 1;
@@ -3490,14 +3731,21 @@ async function disconnectNode(){
 
 
 const THEME_KEY = 'aimili_theme';
-function getThemeIcon(theme) {
-  if (theme === 'light') return '<path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />';
-  if (theme === 'dark') return '<path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />';
-  return '<path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />';
-}
+var themeLabels = { light: '明亮模式', dark: '暗黑模式', system: '跟随系统' };
+var themeIcons = {
+  light: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />',
+  dark: '<path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />',
+  system: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />'
+};
+function getThemeIcon(theme) { return themeIcons[theme] || themeIcons.light; }
 function setTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme);
-  document.getElementById('theme_icon').innerHTML = getThemeIcon(theme);
+  var icon = document.getElementById('theme_icon');
+  if (icon) icon.innerHTML = getThemeIcon(theme);
+  var si = document.getElementById('sidebar_theme_icon');
+  if (si) si.innerHTML = getThemeIcon(theme);
+  var sl = document.getElementById('sidebar_theme_label');
+  if (sl) sl.textContent = themeLabels[theme] || themeLabels.light;
   localStorage.setItem(THEME_KEY, theme);
   document.querySelectorAll('#theme_btn_a, #theme_btn_b, #theme_btn_c').forEach(function(el, i) {
     var modes = ['light', 'dark', 'system'];
@@ -3508,6 +3756,13 @@ function toggleTheme() {
   var saved = localStorage.getItem(THEME_KEY) || 'light';
   var next = saved === 'light' ? 'dark' : (saved === 'dark' ? 'system' : 'light');
   setTheme(next);
+}
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar_overlay').classList.toggle('open');
+}
+function toggleSidebarTheme() {
+  toggleTheme();
 }
 
 async function load(){
@@ -4257,6 +4512,8 @@ document.addEventListener('click', function(e){
 });
 
 </script>
+</main>
+</div>
 </body></html>"""
 
 def check_proxy_health() -> dict[str, Any]:
