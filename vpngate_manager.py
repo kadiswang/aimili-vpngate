@@ -1854,7 +1854,7 @@ LOGIN_HTML = r"""<!DOCTYPE html>
     input {
       width: 100%;
       height: 44px;
-      background: #f8fafc;
+      background: var(--surface-2);
       border: 1px solid #e2e8f0;
       border-radius: 10px;
       padding: 0 14px;
@@ -2052,6 +2052,10 @@ INDEX_HTML = r"""<!doctype html>
     [data-theme="dark"] .dropdown-content a:hover { background: rgba(255,255,255,0.04); }
     [data-theme="dark"] .modal-close:hover { background: var(--surface-2); }
     [data-theme="dark"] #log_terminal_container { background: #05080f !important; border-color: var(--border) !important; color: #a5b4fc !important; box-shadow: inset 0 4px 20px rgba(0,0,0,0.8) !important; }
+    [data-theme="dark"] [style*="background: #f8fafc"] { background: var(--surface) !important; }
+    [data-theme="dark"] .active-card-icon, 
+    [data-theme="dark"] .stat-icon { background: #1a2236; }
+    [data-theme="dark"] .card { background: var(--bg); }
 
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -2121,7 +2125,7 @@ INDEX_HTML = r"""<!doctype html>
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: #ffffff;
+      background: var(--surface);
       color: var(--text-secondary);
       white-space: nowrap;
       text-decoration: none;
@@ -2349,178 +2353,12 @@ INDEX_HTML = r"""<!doctype html>
       text-transform: uppercase;
       letter-spacing: .6px;
       color: var(--text-muted);
-      background: #f8fafc;
+      background: var(--surface-2);
       border-bottom: 1px solid var(--border);
       white-space: nowrap;
     }
 
     td {
-      padding: 12px 16px;
-      border-bottom: 1px solid #f1f5f9;
-      color: var(--text-secondary);
-    }
-
-    tr:hover td { background: #f8fafc; }
-
-    .row-active td {
-      background: #f0fdf4 !important;
-      outline: 1px solid rgba(16,185,129,0.3);
-      outline-offset: -1px;
-    }
-
-    .mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text); }
-
-    .latency { font-weight: 600; font-size: 12px; padding: 2px 6px; border-radius: 4px; }
-    .latency-fast { background: var(--success-bg); color: #059669; }
-    .latency-mid { background: var(--warning-bg); color: #d97706; }
-    .latency-slow { background: var(--danger-bg); color: #dc2626; }
-
-    .table-actions { display: flex; gap: 6px; }
-    .btn-sm {
-      height: 28px; padding: 0 10px; font-size: 12px; border-radius: 6px;
-    }
-
-    .fav-btn { color: #f59e0b; border-color: rgba(245,158,11,0.3); }
-    .fav-btn:hover { background: rgba(245,158,11,0.1); }
-    .fav-btn.active { background: rgba(245,158,11,0.15); }
-
-    .pagination {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 12px 16px;
-      border-top: 1px solid var(--border);
-      font-size: 13px;
-      color: var(--text-muted);
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-
-    .pagination-controls { display: flex; gap: 6px; align-items: center; }
-    .page-btn { height: 30px; padding: 0 10px; font-size: 12px; }
-    .page-num { color: var(--text); font-weight: 600; }
-
-    .dropdown { position: relative; display: inline-block; }
-    .dropdown-content {
-      display: none;
-      position: absolute;
-      right: 0;
-      margin-top: 6px;
-      min-width: 150px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.12);
-      z-index: 200;
-      overflow: hidden;
-    }
-    .dropdown-content a {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 14px;
-      color: var(--text-secondary);
-      text-decoration: none;
-      font-size: 13px;
-      transition: background .15s;
-    }
-    .dropdown-content a:hover { background: #f8fafc; color: var(--text); }
-    .dropdown.open .dropdown-content { display: block; }
-
-    .modal {
-      display: none;
-      position: fixed;
-      inset: 0;
-      z-index: 1000;
-      background: rgba(0,0,0,0.3);
-      align-items: center;
-      justify-content: center;
-    }
-    .modal.open { display: flex; }
-
-    .modal-box {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      width: 90%;
-      max-width: 480px;
-      padding: 28px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.12);
-      animation: fadeIn .2s ease;
-    }
-
-    @keyframes fadeIn { from{opacity:0;transform:scale(.97)} to{opacity:1;transform:scale(1)} }
-
-    .modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 24px;
-    }
-
-    .modal-header h3 {
-      font-size: 17px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .modal-close {
-      background: none; border: none; color: var(--text-muted); cursor: pointer;
-      width: 28px; height: 28px; border-radius: 6px;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .modal-close:hover { background: #f1f5f9; color: var(--text); }
-
-    .form-group { margin-bottom: 18px; }
-    .form-label {
-      display: block;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text-muted);
-      margin-bottom: 6px;
-    }
-
-    .form-input {
-      width: 100%;
-      height: 40px;
-      background: #f8fafc;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 0 12px;
-      color: var(--text);
-      font-family: inherit;
-      font-size: 14px;
-      outline: none;
-    }
-
-    .form-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
-
-    .form-select {
-      width: 100%;
-      height: 40px;
-      background: #f8fafc;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 0 10px;
-      color: var(--text);
-      font-family: inherit;
-      font-size: 14px;
-      outline: none;
-      cursor: pointer;
-    }
-
-    .form-select option { background: var(--surface); }
-
-    .modal-footer {
-      display: flex;
-      gap: 10px;
-      justify-content: flex-end;
-      margin-top: 24px;
-    }
-
-    .msg-error {
       padding: 8px 12px;
       background: var(--danger-bg);
       border: 1px solid rgba(239,68,68,0.2);
@@ -2552,7 +2390,7 @@ INDEX_HTML = r"""<!doctype html>
     }
 
     .option-card {
-      background: #f8fafc;
+      background: var(--surface-2);
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 10px 12px;
@@ -2607,7 +2445,7 @@ INDEX_HTML = r"""<!doctype html>
     @media (max-width: 576px) { .vps-grid { grid-template-columns: 1fr; } }
 
     .vps-card {
-      background: #f8fafc;
+      background: var(--surface-2);
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 16px;
@@ -2648,7 +2486,7 @@ INDEX_HTML = r"""<!doctype html>
     .vps-link:hover { border-color: var(--primary); color: var(--primary); }
 
     .log-container {
-      background: #f8fafc;
+      background: var(--surface-2);
       border: 1px solid var(--border);
       border-radius: 10px;
       height: 380px;
@@ -2689,10 +2527,10 @@ INDEX_HTML = r"""<!doctype html>
     .connect-btn:disabled, .test-btn:disabled { opacity: 0.35; cursor: not-allowed; }
     .modal-content { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; width: 90%; max-width: 480px; padding: 28px; box-shadow: 0 20px 60px rgba(0,0,0,0.12); animation: modalFadeIn .2s ease; }
     .modal-content .btn-primary { height: 38px; padding: 0 18px; }
-    .input-field { width: 100%; height: 40px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 0 12px; color: var(--text); font-family: inherit; font-size: 14px; outline: none; }
+    .input-field { width: 100%; height: 40px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 0 12px; color: var(--text); font-family: inherit; font-size: 14px; outline: none; }
     .input-field:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
     .vps-links { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
-    .vps-item { background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .vps-item { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
     .vps-tag { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 5px; width: fit-content; text-transform: uppercase; letter-spacing: .5px; }
     .tag-normal { background: #eef2ff; color: #6366f1; border: 1px solid rgba(99,102,241,0.2); }
     .tag-premium { background: var(--success-bg); color: #059669; border: 1px solid rgba(16,185,129,0.2); }
@@ -2821,7 +2659,7 @@ INDEX_HTML = r"""<!doctype html>
       收藏菜单
     </button>
   </section>
-  <div id="favorites_panel" style="display: none; background: #ffffff; border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
+  <div id="favorites_panel" style="display: none; background: var(--surface); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
     <div style="display: flex; flex-direction: column; gap: 16px;">
       <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
         <div style="display: flex; flex-direction: column; gap: 4px;">
@@ -2978,7 +2816,7 @@ INDEX_HTML = r"""<!doctype html>
           
           <div id="net_force_country_group" class="form-group" style="margin-bottom: 16px; display: none;">
             <label class="form-label" for="net_force_country">锁定国家地区</label>
-            <select id="net_force_country" class="input-field" style="background: #f8fafc; border: 1px solid var(--border-color); color: var(--text-primary); outline: none; cursor: pointer; width: 100%; height: 40px; border-radius: 8px; padding: 0 12px;">
+            <select id="net_force_country" class="input-field" style="background: var(--surface-2); border: 1px solid var(--border-color); color: var(--text-primary); outline: none; cursor: pointer; width: 100%; height: 40px; border-radius: 8px; padding: 0 12px;">
               <option value="">正在加载节点国家...</option>
             </select>
           </div>
@@ -3002,7 +2840,7 @@ INDEX_HTML = r"""<!doctype html>
             </div>
           </div>
           
-          <div id="net_routing_warning" style="font-size: 12px; color: var(--text-secondary); line-height: 1.4; padding: 8px 12px; background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; margin-top: 8px;">
+          <div id="net_routing_warning" style="font-size: 12px; color: var(--text-secondary); line-height: 1.4; padding: 8px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; margin-top: 8px;">
             ℹ️ <strong>自动配置</strong>：全自动测试并选择最佳IP。在使用过程中，如果当前连接节点没有失效，将不再更换IP；如果当前节点失效，系统将立刻秒级自动漂移到其他最快的可用节点。
           </div>
         </div>
@@ -3041,7 +2879,7 @@ INDEX_HTML = r"""<!doctype html>
       <div style="border-top: 1px dashed var(--border); margin: 20px 0;"></div>
 
       <!-- 本地代理出口检测 -->
-      <div style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: 12px; padding: 16px;">
+      <div style="background: var(--surface-2); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px;">
         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
           <div class="stat-icon-wrapper" style="background: rgba(99, 102, 241, 0.1); border-color: rgba(99, 102, 241, 0.2); width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0;">
             <svg xmlns="http://www.w3.org/2000/svg" class="stat-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="color: var(--primary); width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071a10.5 10.5 0 0114.14 0M1.414 8.05a16 16 0 0121.172 0" /></svg>
@@ -3087,7 +2925,7 @@ INDEX_HTML = r"""<!doctype html>
         
         <div style="display: flex; align-items: center; gap: 10px; margin-left: auto;">
           <label class="form-label" for="log_filter_select" style="margin: 0; font-size: 13px; color: var(--text-secondary);">日志筛选:</label>
-          <select id="log_filter_select" class="input-field" style="width: 140px; height: 32px; font-size: 12px; border-radius: 6px; padding: 0 8px; background: #f8fafc;" onchange="filterAndRenderLogs()">
+          <select id="log_filter_select" class="input-field" style="width: 140px; height: 32px; font-size: 12px; border-radius: 6px; padding: 0 8px; background: var(--surface-2);" onchange="filterAndRenderLogs()">
             <option value="all">全部日志</option>
             <option value="proxy">代理相关 (Proxy)</option>
             <option value="vpn">VPN 连接 (VPN)</option>
@@ -3101,7 +2939,7 @@ INDEX_HTML = r"""<!doctype html>
       </div>
 
       <!-- Terminal Log Container -->
-      <div id="log_terminal_container" style="background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; height: 400px; padding: 16px; overflow-y: auto; font-family: 'JetBrains Mono', Consolas, Courier, monospace; font-size: 12px; line-height: 1.5; text-align: left; white-space: pre-wrap; word-break: break-all; color: #6366f1; box-shadow: inset 0 2px 8px rgba(0,0,0,0.04); position: relative; margin-bottom: 20px;">
+      <div id="log_terminal_container" style="background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; height: 400px; padding: 16px; overflow-y: auto; font-family: 'JetBrains Mono', Consolas, Courier, monospace; font-size: 12px; line-height: 1.5; text-align: left; white-space: pre-wrap; word-break: break-all; color: #6366f1; box-shadow: inset 0 2px 8px rgba(0,0,0,0.04); position: relative; margin-bottom: 20px;">
         <div style="color: var(--text-secondary); text-align: center; margin-top: 150px;">
           暂无今日运行日志记录。
         </div>
@@ -3109,11 +2947,11 @@ INDEX_HTML = r"""<!doctype html>
 
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; gap: 8px;">
-<button type="button" onclick="copyLogContent()" class="btn-primary" style="height: 38px; padding: 0 16px; background: #f8fafc; color: var(--text-primary); border: 1px solid var(--border-color);">
+<button type="button" onclick="copyLogContent()" class="btn-primary" style="height: 38px; padding: 0 16px; background: var(--surface-2); color: var(--text-primary); border: 1px solid var(--border-color);">
           <svg xmlns="http://www.w3.org/2000/svg" style="width:14px; height:14px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
           复制日志
         </button>
-        <button type="button" onclick="exportLogContent()" class="btn-primary" style="height: 38px; padding: 0 16px; background: #f8fafc; color: var(--text-primary); border: 1px solid var(--border-color);">
+        <button type="button" onclick="exportLogContent()" class="btn-primary" style="height: 38px; padding: 0 16px; background: var(--surface-2); color: var(--text-primary); border: 1px solid var(--border-color);">
             <svg xmlns="http://www.w3.org/2000/svg" style="width:14px; height:14px; margin-right: 4px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
             导出日志
           </button>
@@ -3949,7 +3787,7 @@ function handleRoutingModeChange(mode) {
   } else {
     countryGroup.style.display = "none";
     warningDiv.style.color = "var(--text-secondary)";
-    warningDiv.style.background = "#f8fafc";
+    warningDiv.style.background = "var(--surface)";
     warningDiv.style.border = "1px solid var(--border)";
     warningDiv.innerHTML = `ℹ️ <strong>自动配置</strong>：全自动测试并选择最佳IP。在使用过程中，如果当前连接节点没有失效，将不再更换IP；如果当前节点失效，系统将立刻秒级自动漂移到其他最快的可用节点。`;
   }
@@ -4265,7 +4103,7 @@ function renderGatewayServices(services) {
     const statusPulse = s.status === "running" ? '<span class="badge-pulse"></span>' : '';
     
     html += `
-      <div style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: 10px; padding: 12px 16px; display: flex; flex-direction: column; gap: 6px;">
+      <div style="background: var(--surface-2); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px 16px; display: flex; flex-direction: column; gap: 6px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <strong style="font-size: 14px; color: var(--text-primary);">${esc(s.name)}</strong>
           <span class="badge ${badgeClass}">${statusPulse}${statusText}</span>
