@@ -2874,7 +2874,9 @@ INDEX_HTML = r"""<!doctype html>
     </section>
     </div>
 
-    <div id="page_nodes" class="page-content" style="display:none;"></div>
+    <div id="page_nodes" class="page-content" style="display:none;">
+    <section class="active-node-section" id="active_node_card_placeholder" style="display:none;"></section>
+    </div>
 
   <section class="toolbar">
     <select id="status_filter">
@@ -2963,7 +2965,7 @@ INDEX_HTML = r"""<!doctype html>
         <button id="btn_last_page" class="connect-btn" style="height: 32px; padding: 0 10px;">尾页</button>
       </div>
     </div>
-  </div>
+  </div> <!-- end table-wrapper -->
 
   <!-- Credentials Modal (网页安全设置) -->
   <div id="credentials_modal" class="modal">
@@ -3791,9 +3793,6 @@ function switchPage(name) {
   if (page) page.style.display = "";
   var nav = document.getElementById("nav_" + name);
   if (nav) nav.classList.add("active");
-  // Toggle active_node_card visibility
-  var card = document.getElementById("active_node_card");
-  if (card) card.style.display = (name === "overview") ? "" : "none";
   localStorage.setItem("vpngate_page", name);
 }
 
