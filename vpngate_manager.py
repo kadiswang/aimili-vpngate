@@ -2013,6 +2013,46 @@ INDEX_HTML = r"""<!doctype html>
       --shadow: 0 1px 4px rgba(0,0,0,0.06), 0 2px 12px rgba(0,0,0,0.04);
     }
 
+    [data-theme="dark"] {
+      --bg: #0a0e17;
+      --surface: #111827;
+      --surface-2: #1a2236;
+      --border: #1e293b;
+      --border-light: #273548;
+      --border-color: #1e293b;
+      --text: #f1f5f9;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --success-bg: rgba(16,185,129,0.12);
+      --danger-bg: rgba(239,68,68,0.12);
+      --warning-bg: rgba(245,158,11,0.12);
+      --shadow-sm: none;
+      --shadow: none;
+    }
+
+    [data-theme="dark"] .active-card-icon { background: #1a2236; }
+    [data-theme="dark"] .stat-icon { background: #1a2236; }
+    [data-theme="dark"] th { background: rgba(10,14,23,0.4); }
+    [data-theme="dark"] .log-container { background: #05080f; border-color: var(--border); }
+    [data-theme="dark"] .btn-telegram { background: rgba(43,162,223,0.15); border-color: rgba(43,162,223,0.3); color: #2ba2df; }
+    [data-theme="dark"] .btn-telegram:hover { background: rgba(43,162,223,0.25); }
+    [data-theme="dark"] .badge-info { background: rgba(99,102,241,0.15); color: #a5b4fc; }
+    [data-theme="dark"] .tag-green { background: rgba(16,185,129,0.12); color: #10b981; }
+    [data-theme="dark"] .tag-blue { background: rgba(99,102,241,0.15); color: #a5b4fc; }
+    [data-theme="dark"] .vps-card { background: var(--bg); }
+    [data-theme="dark"] .vps-item { background: var(--bg); }
+    [data-theme="dark"] .option-card { background: var(--bg); }
+    [data-theme="dark"] .form-input { background: var(--bg); }
+    [data-theme="dark"] .form-select { background: var(--bg); }
+    [data-theme="dark"] .input-field { background: var(--bg); }
+    [data-theme="dark"] [style*="background: #f8fafc"] { background: var(--surface) !important; }
+    [data-theme="dark"] tr:hover td { background: rgba(255,255,255,0.015); }
+    [data-theme="dark"] .row-active td { background: rgba(16,185,129,0.06) !important; }
+    [data-theme="dark"] .dropdown-content a:hover { background: rgba(255,255,255,0.04); }
+    [data-theme="dark"] .modal-close:hover { background: var(--surface-2); }
+    [data-theme="dark"] #log_terminal_container { background: #05080f !important; border-color: var(--border) !important; color: #a5b4fc !important; box-shadow: inset 0 4px 20px rgba(0,0,0,0.8) !important; }
+
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: var(--bg);
@@ -2023,7 +2063,7 @@ INDEX_HTML = r"""<!doctype html>
 
     header {
       padding: 14px 32px;
-      background: #ffffff;
+      background: var(--surface);
       border-bottom: 1px solid var(--border);
       display: flex;
       justify-content: space-between;
@@ -2683,7 +2723,7 @@ INDEX_HTML = r"""<!doctype html>
   <div class="btn-group">
 
     <div class="dropdown">
-      <button id="github_btn" class="btn-primary" style="background: #f8fafc; border: 1px solid var(--border-color); color: var(--text-primary);">
+      <button id="github_btn" class="btn-primary" style="background: var(--surface); border: 1px solid var(--border-color); color: var(--text-primary);">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: middle; margin-right: 4px;"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
         GITHUB
         <svg xmlns="http://www.w3.org/2000/svg" style="width:12px; height:12px; margin-left: 2px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
@@ -2702,7 +2742,26 @@ INDEX_HTML = r"""<!doctype html>
       更新节点
     </button>
     <div class="dropdown">
-      <button id="admin_btn" class="btn-primary" style="background: #f8fafc; border: 1px solid var(--border-color); color: var(--text-primary);">
+      <button id="theme_btn" class="btn-primary" onclick="document.getElementById('theme_dropdown').classList.toggle('show')" title="切换主题" style="background: var(--surface); border: 1px solid var(--border-color); color: var(--text-secondary);">
+        <svg id="theme_icon" xmlns="http://www.w3.org/2000/svg" style="width:16px; height:16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+      </button>
+      <div id="theme_dropdown" class="dropdown-content" style="min-width:140px;">
+        <a id="theme_btn_a" href="javascript:void(0)" onclick="setTheme('light');event.stopPropagation();">
+          <svg xmlns="http://www.w3.org/2000/svg" style="width:14px; height:14px; margin-right:6px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+          明亮模式
+        </a>
+        <a id="theme_btn_b" href="javascript:void(0)" onclick="setTheme('dark');event.stopPropagation();">
+          <svg xmlns="http://www.w3.org/2000/svg" style="width:14px; height:14px; margin-right:6px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" /></svg>
+          暗黑模式
+        </a>
+        <a id="theme_btn_c" href="javascript:void(0)" onclick="setTheme('system');event.stopPropagation();">
+          <svg xmlns="http://www.w3.org/2000/svg" style="width:14px; height:14px; margin-right:6px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" /></svg>
+          跟随系统
+        </a>
+      </div>
+    </div>
+    <div class="dropdown">
+      <button id="admin_btn" class="btn-primary" style="background: var(--surface); border: 1px solid var(--border-color); color: var(--text-primary);">
         <svg xmlns="http://www.w3.org/2000/svg" style="width:16px; height:16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
         管理员
         <svg xmlns="http://www.w3.org/2000/svg" style="width:12px; height:12px; margin-left: 2px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
@@ -3592,6 +3651,27 @@ async function disconnectNode(){
 
 
 
+const THEME_KEY = 'aimili_theme';
+function getThemeIcon(theme) {
+  if (theme === 'light') return '<path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />';
+  if (theme === 'dark') return '<path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />';
+  return '<path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />';
+}
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme);
+  document.getElementById('theme_icon').innerHTML = getThemeIcon(theme);
+  localStorage.setItem(THEME_KEY, theme);
+  document.querySelectorAll('#theme_btn_a, #theme_btn_b, #theme_btn_c').forEach(function(el, i) {
+    var modes = ['light', 'dark', 'system'];
+    el.style.background = modes[i] === theme ? 'rgba(99,102,241,0.1)' : 'transparent';
+  });
+}
+function toggleTheme() {
+  var saved = localStorage.getItem(THEME_KEY) || 'light';
+  var next = saved === 'light' ? 'dark' : (saved === 'dark' ? 'system' : 'light');
+  setTheme(next);
+}
+
 async function load(){
   const r=await fetch("./api/nodes"); 
   const d=await r.json(); 
@@ -4316,8 +4396,28 @@ function exportLogContent() {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+URL.revokeObjectURL(url);
 }
+
+// 主题初始化
+(function(){
+  var saved = localStorage.getItem(THEME_KEY) || 'light';
+  setTheme(saved);
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(){
+    if (localStorage.getItem(THEME_KEY) === 'system') {
+      setTheme('system');
+    }
+  });
+})();
+
+// 点击外部关闭主题下拉
+document.addEventListener('click', function(e){
+  var dd = document.getElementById('theme_dropdown');
+  if (!e.target.closest('#theme_btn') && !e.target.closest('#theme_dropdown')) {
+    dd.classList.remove('show');
+  }
+});
+
 </script>
 </body></html>"""
 
