@@ -83,7 +83,7 @@ fi
 # 4. Clone or pull the repository
 INSTALL_DIR="/opt/aimilivpn"
 # 默认部署分支（在 260621-refactor-ui-light-theme 分支设为 260621-refactor-ui-light-theme；在 main 分支设为 main）
-DEFAULT_DEPLOY_BRANCH="260621-refactor-ui-light-theme"
+DEFAULT_DEPLOY_BRANCH="main"
 
 # 自动检测本地已安装版本当前所在的分支
 CURRENT_BRANCH=""
