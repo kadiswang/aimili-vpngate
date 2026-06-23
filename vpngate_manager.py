@@ -2995,7 +2995,7 @@ INDEX_HTML = r"""<!doctype html>
             <th style="width: 160px;">操作</th>
           </tr>
         </thead>
-        <tbody id="rows"></tbody>
+        <tbody id="rows" style="display: table-row-group !important;"></tbody>
       </table>
     </div>
     
@@ -3617,7 +3617,7 @@ function render(){
 
   // Render table rows
   if (currentPageNodes.length === 0) {
-    $("rows").innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-secondary); padding: 40px 0;">未找到符合过滤条件的备选节点。</td></tr>`;
+    $("rows").innerHTML = `<tr style="display: table-row !important;"><td colspan="7" style="display: table-cell !important; text-align: center; color: var(--text-secondary); padding: 40px 0;">未找到符合过滤条件的备选节点。</td></tr>`;
   } else {
     $("rows").innerHTML=currentPageNodes.map(n=>{
       if (!n) return '';
@@ -3648,14 +3648,14 @@ function render(){
         ? `<button class="test-btn" style="color: var(--warning); border-color: rgba(245, 158, 11, 0.4); padding: 0 8px; height: 30px;" onclick="toggleFavorite('${esc(n.id)}', event)">★ 已收藏</button>`
         : `<button class="test-btn" style="color: var(--text-secondary); border-color: var(--border-color); padding: 0 8px; height: 30px;" onclick="toggleFavorite('${esc(n.id)}', event)">☆ 收藏</button>`;
 
-      return `<tr ${rowClass}>
-        <td><span class="badge ${badgeClass}">${badgeText}</span></td>
-        <td class="mono" style="white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis;" title="${esc(n.ip||n.remote_host)}:${n.remote_port||""}">${esc(n.ip||n.remote_host)}:${n.remote_port||""}</td>
-        <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${esc(displayLocation)}">${esc(displayLocation)}</td>
-        <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${esc(n.owner||n.as_name||"-")}">${esc(n.owner||n.as_name||"-")}</td>
-        <td style="white-space: nowrap; max-width: 110px; overflow: hidden; text-overflow: ellipsis;" title="${esc(translateIpType(n.ip_type))}">${esc(translateIpType(n.ip_type))}</td>
-        <td style="white-space: nowrap;">${latencyText}</td>
-        <td>
+      return `<tr ${rowClass} style="display: table-row !important;">
+        <td style="display: table-cell !important;"><span class="badge ${badgeClass}">${badgeText}</span></td>
+        <td class="mono" style="white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; display: table-cell !important;" title="${esc(n.ip||n.remote_host)}:${n.remote_port||""}">${esc(n.ip||n.remote_host)}:${n.remote_port||""}</td>
+        <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: table-cell !important;" title="${esc(displayLocation)}">${esc(displayLocation)}</td>
+        <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: table-cell !important;" title="${esc(n.owner||n.as_name||"-")}">${esc(n.owner||n.as_name||"-")}</td>
+        <td style="white-space: nowrap; max-width: 110px; overflow: hidden; text-overflow: ellipsis; display: table-cell !important;" title="${esc(translateIpType(n.ip_type))}">${esc(translateIpType(n.ip_type))}</td>
+        <td style="white-space: nowrap; display: table-cell !important;">${latencyText}</td>
+        <td style="display: table-cell !important;">
           <div class="table-actions">
             ${favBtn}
             ${connectBtn}
