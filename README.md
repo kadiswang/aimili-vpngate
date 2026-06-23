@@ -9,6 +9,12 @@ Bilingual: [中文](#中文) | [English](#english)
 
 AimiliVPN 是一款基于官方 VPNGate 开放协议的高性能、零依赖 VPN 代理网关。它以纯 Python 标准库编写，内置美观响应式的管理网页，提供智能并发测速、多路由模式、出站代理网关、实时日志等强大功能。
 
+本项目是 AimiliVPN / aimili-vpngate 的修改版，基于 VPNGate 免费节点构建 OpenVPN 出站连接，并提供 Web UI、HTTP/SOCKS5 本地代理网关、节点测速、收藏、拉黑和自动切换能力。
+
+项目来源
+源项目地址: https://github.com/baoweise-bot/aimili-vpngate
+本修改版保留源项目的部署脚本、OpenVPN 连接管理、Web 管理界面和本地代理网关能力，并围绕"UI等"做了定制。
+
 ### 📢 官方交流与反馈
 [![Telegram](https://img.shields.io/badge/TG交流群-arestemple-2CA5E0?style=flat-square&logo=telegram&logoColor=white)](https://t.me/arestemple)
 [![Forum](https://img.shields.io/badge/交流论坛-339936.xyz-orange?style=flat-square&logo=discourse&logoColor=white)](https://339936.xyz)
@@ -125,6 +131,12 @@ bash <(curl -Ls https://raw.githubusercontent.com/kadiswang/aimili-vpngate/26062
 ## English
 
 AimiliVPN is a high-performance, zero-dependency VPN proxy gateway built entirely using Python's standard library. It parses official VPNGate servers, benchmarks latency, and routes traffic through a built-in dual-protocol (HTTP/SOCKS5) proxy server.
+
+This project is a modified version of AimiliVPN / aimili-vpngate, building OpenVPN outbound connections based on VPNGate free nodes, and providing Web UI, HTTP/SOCKS5 local proxy gateway, node speed testing, favorites, blacklisting, and auto-switch capabilities.
+
+Project Origin
+Source project: https://github.com/baoweise-bot/aimili-vpngate
+This modified version retains the source project's deployment script, OpenVPN connection management, Web admin interface, and local proxy gateway capabilities, with customizations around "UI, etc.".
 
 ### 📢 Community & Feedback
 - **Telegram Group**: [arestemple](https://t.me/arestemple)
