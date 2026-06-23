@@ -3544,6 +3544,7 @@ function render(){
   }
 
   const shown = getFilteredNodes();
+  console.log("[render] shown count:", shown.length, "currentPageNodes:", currentPageNodes.length);
   
   if ($("total")) $("total").textContent = nodes.length; 
   if ($("target")) $("target").textContent = state.target_valid_nodes || 3;
@@ -3857,7 +3858,9 @@ async function load(){
   const r=await fetch("./api/nodes"); 
   const d=await r.json(); 
   nodes=Array.isArray(d.nodes) ? d.nodes : []; 
+  console.log("[load] nodes count:", nodes.length, "first node:", nodes[0] ? nodes[0].id : "none");
   state=d.state||{}; 
+  console.log("[load] state.last_fetch_status:", state.last_fetch_status);
   
   stableSortNodes();
   updateCountryFilter();
