@@ -232,7 +232,8 @@ def load_ui_config() -> dict[str, Any]:
             "connection_enabled": True,
             "fixed_node_id": "",
             "favorite_node_ids": [],
-            "fav_fail_fallback": True
+            "fav_fail_fallback": True,
+            "upstream_proxy": { "enabled": False }
         }
         updated = False
         if auth_file.exists():
@@ -240,7 +241,7 @@ def load_ui_config() -> dict[str, Any]:
                 data = json.loads(auth_file.read_text(encoding="utf-8"))
                 for key, val in data.items():
                     config[key] = val
-                for key in ["host", "port", "proxy_port", "routing_mode", "force_country", "routing_ip_type", "connection_enabled", "fixed_node_id", "favorite_node_ids", "fav_fail_fallback"]:
+                for key in ["host", "port", "proxy_port", "routing_mode", "force_country", "routing_ip_type", "connection_enabled", "fixed_node_id", "favorite_node_ids", "fav_fail_fallback", "upstream_proxy"]:
                     if key not in data:
                         updated = True
             except Exception:
@@ -392,6 +393,7 @@ def get_state() -> dict[str, Any]:
     state["fixed_node_id"] = ui_cfg.get("fixed_node_id", "")
     state["favorite_node_ids"] = ui_cfg.get("favorite_node_ids", [])
     state["fav_fail_fallback"] = ui_cfg.get("fav_fail_fallback", True)
+    state["upstream_proxy"] = ui_cfg.get("upstream_proxy", { "enabled": False })
     
     return state
 
@@ -483,7 +485,7 @@ def read_socks5_connect_reply(sock: socket.socket) -> None:
 def format_host_port(host: str, port: int) -> str:
     return f"[{host}]:{port}" if ":" in host and not host.startswith("[") else f"{host}:{port}"
 
-def fetch_api_text_via_proxy(url: str, ptype: str, phost: str, pport: int, use_ssl_verify: bool = True) -> str:
+def fetch_api_text_via_proxy(url: str, ptype: str, phost: str, pport: int, use_ssl_verify: bool = True, proxy_user: str | None = None, proxy_pass: str | None = None) -> str:
     import socket
     import ssl
     import urllib.parse
@@ -503,7 +505,8 @@ def fetch_api_text_via_proxy(url: str, ptype: str, phost: str, pport: int, use_s
         s = socket.socket(af, socket.SOCK_STREAM)
         s.settimeout(12)
         s.connect((phost, pport))
-        proxy_user, proxy_pass = vpn_utils.get_upstream_proxy_auth()
+        if proxy_user is None:
+            proxy_user, proxy_pass = vpn_utils.get_upstream_proxy_auth()
         if ptype == "socks":
             # SOCKS5 Handshake
             if proxy_user is not None:
@@ -639,17 +642,38 @@ def fetch_api_text_via_proxy(url: str, ptype: str, phost: str, pport: int, use_s
 
     return body_part.decode('utf-8', errors='replace')
 
+def _get_upstream_from_config() -> tuple[str | None, str | None, int | None, str | None, str | None]:
+    try:
+        ui_cfg = load_ui_config()
+        up = ui_cfg.get("upstream_proxy", {})
+        if up.get("enabled") and up.get("host") and up.get("port"):
+            return (
+                up.get("type", "socks"),
+                up["host"],
+                int(up["port"]),
+                up.get("user") or None,
+                up.get("pass") or None
+            )
+    except Exception:
+        pass
+    return None, None, None, None, None
+
 def fetch_api_text(url: str | None = None, use_ssl_verify: bool = True) -> str:
     if url is None:
         url = API_URL
     
     ptype, phost, pport = vpn_utils.get_upstream_proxy()
+    proxy_user, proxy_pass = None, None
+    
+    if not (ptype and phost and pport):
+        ptype, phost, pport, proxy_user, proxy_pass = _get_upstream_from_config()
+    
     if ptype and phost and pport:
         try:
-            print(f"[fetch_api_text] 监测到上游代理 ({ptype}://{phost}:{pport})，尝试通过代理获取 API...", flush=True)
-            return fetch_api_text_via_proxy(url, ptype, phost, pport, use_ssl_verify)
+            print(f"[fetch_api_text] 使用上游代理 ({ptype}://{phost}:{pport}) 获取 API...", flush=True)
+            return fetch_api_text_via_proxy(url, ptype, phost, pport, use_ssl_verify, proxy_user, proxy_pass)
         except Exception as e:
-            print(f"[fetch_api_text] 通过代理获取 API 失败: {e}，尝试使用直连/默认系统代理...", flush=True)
+            print(f"[fetch_api_text] 通过代理获取 API 失败: {e}，尝试直连...", flush=True)
             log_to_json("WARNING", "Main", f"使用代理 {ptype}://{phost}:{pport} 获取 API 失败: {e}")
 
     request = urllib.request.Request(
@@ -3059,6 +3083,52 @@ INDEX_HTML = r"""<!doctype html>
           <input type="number" id="net_proxy_port" class="input-field" required min="1024" max="65535" placeholder="7928">
         </div>
 
+        <div style="border-top: 1px dashed var(--border); padding-top: 16px; margin-bottom: 4px;">
+          <label style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;color:var(--primary)"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0z"/><path d="M12 14v7m-3-3h6"/></svg>
+            上游代理（拉取节点用）
+          </label>
+          <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.4;">配置后通过代理访问 vpngate.net 拉取节点列表。留空则不启用。</p>
+          
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label" for="net_upstream_enabled">启用上游代理</label>
+            <input type="checkbox" id="net_upstream_enabled" style="width:16px;height:16px;accent-color:var(--primary);" onchange="toggleUpstreamFields()">
+          </div>
+          
+          <div id="upstream_proxy_fields" style="display:none;">
+            <div class="form-group" style="margin-bottom: 12px;">
+              <label class="form-label">代理类型</label>
+              <input type="hidden" id="net_upstream_type" value="socks">
+              <div class="option-group" id="upstream_type_group">
+                <div class="option-card active" data-value="socks" onclick="setUpstreamType('socks')">
+                  <div class="option-card-title">SOCKS5</div>
+                  <div class="option-card-desc">通用代理</div>
+                </div>
+                <div class="option-card" data-value="http" onclick="setUpstreamType('http')">
+                  <div class="option-card-title">HTTP</div>
+                  <div class="option-card-desc">HTTP代理</div>
+                </div>
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom: 12px;">
+              <label class="form-label" for="net_upstream_host">代理地址</label>
+              <input type="text" id="net_upstream_host" class="input-field" placeholder="127.0.0.1">
+            </div>
+            <div class="form-group" style="margin-bottom: 12px;">
+              <label class="form-label" for="net_upstream_port">代理端口</label>
+              <input type="number" id="net_upstream_port" class="input-field" min="1" max="65535" placeholder="1080">
+            </div>
+            <div class="form-group" style="margin-bottom: 12px;">
+              <label class="form-label" for="net_upstream_user">用户名（可选）</label>
+              <input type="text" id="net_upstream_user" class="input-field" placeholder="留空则不认证">
+            </div>
+            <div class="form-group" style="margin-bottom: 12px;">
+              <label class="form-label" for="net_upstream_pass">密码（可选）</label>
+              <input type="password" id="net_upstream_pass" class="input-field" placeholder="留空则不认证">
+            </div>
+          </div>
+        </div>
+
         <div style="border-top: 1px dashed var(--border); padding-top: 16px; margin-bottom: 16px;">
           <div class="form-group" style="margin-bottom: 16px;">
             <label class="form-label">IP 出站路由模式</label>
@@ -4016,6 +4086,18 @@ function selectOptionCard(groupName, value) {
         card.classList.remove("active");
       }
     });
+  } else if (groupName === 'upstream_type') {
+    const input = $("net_upstream_type");
+    if (input) input.value = value;
+    
+    const cards = document.querySelectorAll("#upstream_type_group .option-card");
+    cards.forEach(card => {
+      if (card.getAttribute("data-value") === value) {
+        card.classList.add("active");
+      } else {
+        card.classList.remove("active");
+      }
+    });
   }
 }
 
@@ -4203,6 +4285,22 @@ function openNetworkModal() {
     
     selectOptionCard('routing_mode', mode);
     selectOptionCard('routing_ip_type', ipType);
+    
+    const up = state.upstream_proxy || {};
+    if (up.enabled && up.host && up.port) {
+      $("net_upstream_enabled").checked = true;
+      $("upstream_proxy_fields").style.display = "block";
+      $("net_upstream_host").value = up.host || "";
+      $("net_upstream_port").value = up.port || "";
+      $("net_upstream_user").value = up.user || "";
+      $("net_upstream_pass").value = up.pass || "";
+      const utype = up.type || "socks";
+      $("net_upstream_type").value = utype;
+      selectOptionCard('upstream_type', utype);
+    } else {
+      $("net_upstream_enabled").checked = false;
+      $("upstream_proxy_fields").style.display = "none";
+    }
   }
   
   populateRoutingCountries();
@@ -4211,6 +4309,15 @@ function openNetworkModal() {
 
 function closeNetworkModal() {
   $("network_modal").style.display = "none";
+}
+
+function toggleUpstreamFields() {
+  var enabled = $("net_upstream_enabled").checked;
+  $("upstream_proxy_fields").style.display = enabled ? "block" : "none";
+}
+
+function setUpstreamType(val) {
+  selectOptionCard('upstream_type', val);
 }
 
 async function saveNetwork(e) {
@@ -4226,6 +4333,26 @@ async function saveNetwork(e) {
   const routingMode = $("net_routing_mode").value;
   const forceCountry = $("net_force_country").value;
   const routingIpType = $("net_routing_ip_type").value;
+  
+  const upstreamEnabled = $("net_upstream_enabled").checked;
+  const upstreamType = $("net_upstream_type").value;
+  const upstreamHost = ($("net_upstream_host").value || "").trim();
+  const upstreamPort = parseInt($("net_upstream_port").value) || 0;
+  const upstreamUser = ($("net_upstream_user").value || "").trim();
+  const upstreamPass = ($("net_upstream_pass").value || "").trim();
+  
+  if (upstreamEnabled) {
+    if (!upstreamHost) {
+      errorDivEl.textContent = "请输入上游代理地址";
+      errorDivEl.style.display = "block";
+      return;
+    }
+    if (!upstreamPort || upstreamPort < 1 || upstreamPort > 65535) {
+      errorDivEl.textContent = "上游代理端口范围必须在 1 至 65535 之间";
+      errorDivEl.style.display = "block";
+      return;
+    }
+  }
   
   if (isNaN(proxyPort) || proxyPort < 1024 || proxyPort > 65535) {
     errorDivEl.textContent = "代理出站端口范围必须在 1024 至 65535 之间";
@@ -4256,7 +4383,15 @@ async function saveNetwork(e) {
         proxy_port: proxyPort,
         routing_mode: routingMode,
         force_country: forceCountry,
-        routing_ip_type: routingIpType
+        routing_ip_type: routingIpType,
+        upstream_proxy: upstreamEnabled ? {
+          enabled: true,
+          type: upstreamType,
+          host: upstreamHost,
+          port: upstreamPort,
+          user: upstreamUser,
+          pass: upstreamPass
+        } : { enabled: false }
       })
     });
     
@@ -5154,6 +5289,22 @@ class Handler(BaseHTTPRequestHandler):
                 ui_cfg["routing_mode"] = routing_mode
                 ui_cfg["force_country"] = force_country
                 ui_cfg["routing_ip_type"] = routing_ip_type
+                
+                upstream_data = payload.get("upstream_proxy")
+                if upstream_data and isinstance(upstream_data, dict):
+                    if upstream_data.get("enabled"):
+                        ui_cfg["upstream_proxy"] = {
+                            "enabled": True,
+                            "type": str(upstream_data.get("type", "socks")).strip() or "socks",
+                            "host": str(upstream_data.get("host", "")).strip(),
+                            "port": int(upstream_data.get("port", 0)),
+                            "user": str(upstream_data.get("user", "")).strip(),
+                            "pass": str(upstream_data.get("pass", "")).strip()
+                        }
+                    else:
+                        ui_cfg["upstream_proxy"] = { "enabled": False }
+                elif "upstream_proxy" not in ui_cfg:
+                    ui_cfg["upstream_proxy"] = { "enabled": False }
                 
                 auth_file = DATA_DIR / "ui_auth.json"
                 with lock:
