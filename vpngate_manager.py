@@ -128,9 +128,27 @@ AUTH_FILE = DATA_DIR / "vpngate_auth.txt"
 UPSTREAM_PROXY_AUTH_FILE = DATA_DIR / "upstream_proxy_auth.txt"
 BLACKLIST_FILE = DATA_DIR / "blacklist.json"
 
+SESSION_CLEANUP_INTERVAL = 300  # 5 minutes
+SESSION_TIMEOUT = 30 * 24 * 3600  # 30 days
+LOGIN_RATE_LIMIT_WINDOW = 300  # 5 minutes
+LOGIN_RATE_LIMIT_MAX_ATTEMPTS = 10
+CSRF_TOKEN_EXPIRY = 30 * 60  # 30 minutes
+CONFIG_CACHE_TTL = 5.0  # 5 seconds
+LOG_TAIL_LINES = 500  # max lines returned via API
+NODE_CACHE_TTL = 2.0  # seconds
+MAX_CONFIG_TEXT_LENGTH = 8192  # truncate config_text for API responses
+NODE_EXPORT_FIELDS = [
+    "id", "country", "country_short", "host_name", "ip",
+    "score", "ping", "speed", "sessions", "owner", "asn",
+    "as_name", "location", "ip_type", "quality", "latency_ms",
+    "probe_status", "probe_message", "probed_at",
+]
+
 lock = threading.RLock()
 maintenance_lock = threading.Lock()
 active_sessions: dict[str, float] = {}
+active_ws_clients: list = []
+ws_clients_lock = threading.Lock()
 active_openvpn_process: subprocess.Popen[str] | None = None
 active_openvpn_node_id = ""
 is_connecting = True
@@ -144,7 +162,99 @@ server_start_time = time.time()
 
 _nodes_cache: list[dict[str, Any]] | None = None
 _nodes_cache_time = 0.0
-_NODES_CACHE_TTL = 2.0
+_NODES_CACHE_TTL = NODE_CACHE_TTL
+
+def _cleanup_expired_sessions() -> None:
+    now = time.time()
+    expired = [t for t, exp in active_sessions.items() if exp <= now]
+    for t in expired:
+        active_sessions.pop(t, None)
+
+
+def _get_or_cleanup_sessions() -> dict[str, float]:
+    _cleanup_expired_sessions()
+    return active_sessions
+
+
+def _cached_load_ui_config() -> dict[str, Any]:
+    global _config_cache, _config_cache_time
+    now = time.time()
+    if _config_cache is not None and now - _config_cache_time < CONFIG_CACHE_TTL:
+        return _config_cache
+    result = _raw_load_ui_config()
+    with lock:
+        _config_cache = result
+        _config_cache_time = now
+    return result
+
+
+_config_cache: dict[str, Any] | None = None
+_config_cache_time = 0.0
+
+
+def load_ui_config() -> dict[str, Any]:
+    with lock:
+        auth_file = DATA_DIR / "ui_auth.json"
+        config = {
+            "username": "",
+            "secret_path": "EJsW2EeBo9lY",
+            "password": "",
+            "host": UI_HOST,
+            "port": UI_PORT,
+            "proxy_port": LOCAL_PROXY_PORT,
+            "routing_mode": "auto",
+            "force_country": "",
+            "routing_ip_type": "all",
+            "connection_enabled": True,
+            "fixed_node_id": "",
+            "favorite_node_ids": [],
+            "fav_fail_fallback": True,
+            "upstream_proxy": { "enabled": False }
+        }
+        updated = False
+        if auth_file.exists():
+            try:
+                data = json.loads(auth_file.read_text(encoding="utf-8"))
+                for key, val in data.items():
+                    config[key] = val
+                for key in ["host", "port", "proxy_port", "routing_mode", "force_country", "routing_ip_type", "connection_enabled", "fixed_node_id", "favorite_node_ids", "fav_fail_fallback", "upstream_proxy"]:
+                    if key not in data:
+                        updated = True
+            except Exception:
+                pass
+        
+        if not config.get("username"):
+            config["username"] = generate_random_username()
+            updated = True
+            
+        if not config.get("password"):
+            config["password"] = generate_random_password()
+            updated = True
+
+        normalized_port = bounded_int(config.get("port"), UI_PORT, 1, 65535)
+        if normalized_port != config.get("port"):
+            config["port"] = normalized_port
+            updated = True
+
+        normalized_proxy_port = bounded_int(config.get("proxy_port"), LOCAL_PROXY_PORT, 1024, 65535)
+        if normalized_proxy_port == normalized_port:
+            fallback_proxy_port = LOCAL_PROXY_PORT if LOCAL_PROXY_PORT != normalized_port else 7928
+            if fallback_proxy_port == normalized_port:
+                fallback_proxy_port = 7929
+            normalized_proxy_port = fallback_proxy_port
+        if normalized_proxy_port != config.get("proxy_port"):
+            config["proxy_port"] = normalized_proxy_port
+            updated = True
+            
+        if not auth_file.exists() or updated:
+            try:
+                DATA_DIR.mkdir(exist_ok=True, parents=True)
+                auth_file.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
+            except Exception:
+                pass
+                
+        return config
+
 
 def ensure_dirs() -> None:
     DATA_DIR.mkdir(exist_ok=True, parents=True)
@@ -281,7 +391,7 @@ def load_ui_config() -> dict[str, Any]:
 
 # 初始化时优先从 ui_auth.json 加载保存的代理出站端口和网页端口配置以覆盖环境变量
 try:
-    _init_cfg = load_ui_config()
+    _init_cfg = _cached_load_ui_config()
     if "proxy_port" in _init_cfg:
         LOCAL_PROXY_PORT = bounded_int(_init_cfg["proxy_port"], LOCAL_PROXY_PORT, 1024, 65535)
     if "port" in _init_cfg:
@@ -291,11 +401,49 @@ try:
 except Exception:
     pass
 
-def get_session_token(password: str, username: str = "admin") -> str:
+_login_attempts: dict[str, list[float]] = {}
+_login_attempts_lock = threading.Lock()
+
+_csrf_tokens: dict[str, tuple[float, str]] = {}
+_csrf_lock = threading.Lock()
+
+
+def _check_login_rate_limit(ip: str) -> bool:
+    now = time.time()
+    with _login_attempts_lock:
+        if ip not in _login_attempts:
+            _login_attempts[ip] = []
+        timestamps = [_t for _t in _login_attempts[ip] if now - _t < LOGIN_RATE_LIMIT_WINDOW]
+        _login_attempts[ip] = timestamps
+        return len(timestamps) < LOGIN_RATE_LIMIT_MAX_ATTEMPTS
+
+
+def _record_login_attempt(ip: str) -> None:
+    now = time.time()
+    with _login_attempts_lock:
+        if ip not in _login_attempts:
+            _login_attempts[ip] = []
+        _login_attempts[ip].append(now)
+
+
+def _generate_csrf_token() -> str:
+    token = uuid.uuid4().hex + uuid.uuid4().hex
+    with _csrf_lock:
+        _csrf_tokens[token] = (time.time() + CSRF_TOKEN_EXPIRY, token)
+    return token
+
+
+def _validate_csrf_token(token: str | None) -> bool:
+    if not token:
+        return False
+    with _csrf_lock:
+        entry = _csrf_tokens.pop(token, None)
+    if entry is None:
+        return False
+    expiry, _ = entry
+    return expiry > time.time()
     salt = "aimilivpn_secure_salt_2026"
     return hashlib.sha256((username + ":" + password + salt).encode("utf-8")).hexdigest()
-
-_last_cleanup_time = 0.0
 
 def cleanup_old_logs(logs_dir: Path) -> None:
     global _last_cleanup_time
@@ -344,6 +492,44 @@ def log_to_json(level: str, module: str, message: str) -> None:
     except Exception as e:
         print(f"[Log Error] Failed to write JSON log: {e}", flush=True)
 
+
+_audit_log_lock = threading.Lock()
+_audit_logs: list[dict[str, Any]] = []
+_MAX_AUDIT_LOGS = 1000
+
+
+def log_audit(action: str, module: str, detail: str, user: str = "system") -> None:
+    entry = {
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+        "action": action,
+        "module": module,
+        "detail": detail,
+        "user": user,
+    }
+    with _audit_log_lock:
+        _audit_logs.append(entry)
+        if len(_audit_logs) > _MAX_AUDIT_LOGS:
+            _audit_logs[:] = _audit_logs[-_MAX_AUDIT_LOGS:]
+    log_to_json("AUDIT", module, f"[{action}] {detail} (user: {user})")
+
+
+_event_stream_lock = threading.Lock()
+_event_callbacks: list[callable] = []
+
+
+def register_event_callback(cb: callable) -> None:
+    with _event_stream_lock:
+        _event_callbacks.append(cb)
+
+
+def broadcast_event(event_type: str, data: dict[str, Any] | None = None) -> None:
+    with _event_stream_lock:
+        for cb in _event_callbacks:
+            try:
+                cb(event_type, data)
+            except Exception:
+                pass
+
 def set_state(**updates: Any) -> None:
     state = get_state()
     state.update(updates)
@@ -380,7 +566,7 @@ def get_state() -> dict[str, Any]:
     state.setdefault("blacklisted_nodes", 0)
     
     # Pre-populate settings inputs in UI
-    ui_cfg = load_ui_config()
+    ui_cfg = _cached_load_ui_config()
     state["username"] = ui_cfg.get("username", "admin")
     state["port"] = ui_cfg.get("port", 8790)
     state["secret_path"] = ui_cfg.get("secret_path", "EJsW2EeBo9lY")
@@ -394,6 +580,7 @@ def get_state() -> dict[str, Any]:
     state["favorite_node_ids"] = ui_cfg.get("favorite_node_ids", [])
     state["fav_fail_fallback"] = ui_cfg.get("fav_fail_fallback", True)
     state["upstream_proxy"] = ui_cfg.get("upstream_proxy", { "enabled": False })
+    state["country_translations"] = vpn_utils.COUNTRY_TRANSLATIONS
     
     return state
 
@@ -644,7 +831,7 @@ def fetch_api_text_via_proxy(url: str, ptype: str, phost: str, pport: int, use_s
 
 def _get_upstream_from_config() -> tuple[str | None, str | None, int | None, str | None, str | None]:
     try:
-        ui_cfg = load_ui_config()
+        ui_cfg = _cached_load_ui_config()
         up = ui_cfg.get("upstream_proxy", {})
         if up.get("enabled") and up.get("host") and up.get("port"):
             return (
@@ -749,6 +936,7 @@ def row_to_node(row: dict[str, str], config_text: str) -> dict[str, Any]:
     return {
         "id": node_id,
         "country": country_zh,
+        "country_en": country_long,
         "country_short": country_short,
         "host_name": row.get("HostName", ""),
         "ip": ip,
@@ -1404,7 +1592,7 @@ def auto_switch_node(attempt: int = 0) -> None:
         print("[自动切换] 连续切换失败已达 3 次，停止切换以防止主线程死锁，将在后台重新加载节点...", flush=True)
         return
         
-    ui_cfg = load_ui_config()
+    ui_cfg = _cached_load_ui_config()
     connection_enabled = ui_cfg.get("connection_enabled", True)
     if not connection_enabled:
         print("[自动切换] 连接已禁用，不进行自动切换。", flush=True)
@@ -1507,7 +1695,7 @@ def connect_node(node_id: str) -> str:
         if not node:
             raise ValueError(f"Node not found: {node_id}")
         
-        ui_cfg = load_ui_config()
+        ui_cfg = _cached_load_ui_config()
         ui_cfg["connection_enabled"] = True
         if ui_cfg.get("routing_mode") == "fixed_ip":
             ui_cfg["fixed_node_id"] = node_id
@@ -1596,6 +1784,7 @@ def connect_node(node_id: str) -> str:
             
         latency_str = f"{last_active_latency} ms" if last_active_latency > 0 else "检测超时"
         set_state(active_openvpn_node_id=node_id, is_connecting=False, last_check_message=f"Connected {node_id}", active_node_latency=latency_str)
+        broadcast_event("node_connected", {"node_id": node_id})
         log_to_json("INFO", "VPN", f"节点 {node_id} 连接成功，出口网卡 tun0 已启用")
         return f"Connected {node_id}"
     except Exception as exc:
@@ -1621,7 +1810,7 @@ def maintain_valid_nodes(force: bool = False) -> str:
             with lock:
                 stop_active_openvpn()
         elif not active_openvpn_running():
-            ui_cfg = load_ui_config()
+            ui_cfg = _cached_load_ui_config()
             routing_mode = ui_cfg.get("routing_mode", "auto")
             connection_enabled = ui_cfg.get("connection_enabled", True)
             if connection_enabled:
@@ -1732,7 +1921,7 @@ def maintain_valid_nodes(force: bool = False) -> str:
                 log_to_json("WARNING", "Main", warn_msg)
             
             if not active_openvpn_running():
-                ui_cfg = load_ui_config()
+                ui_cfg = _cached_load_ui_config()
                 connection_enabled = ui_cfg.get("connection_enabled", True)
                 if connection_enabled:
                     routing_mode = ui_cfg.get("routing_mode", "auto")
@@ -3309,6 +3498,30 @@ let nodes=[], state={}, testingNodeIds = new Set();
 let currentPage = 1;
 const pageSize = 99999;
 let currentPageNodes = [];
+let countryDict: Record<string, string> = {};
+let csrfToken = "";
+
+async function fetchWithCsrf(url, options = {}) {
+  if (options.headers && typeof options.headers === "object") {
+    options.headers = { ...options.headers };
+    if (csrfToken) {
+      options.headers["X-CSRF-Token"] = csrfToken;
+    }
+  }
+  const resp = await fetch(url, options);
+  if (resp.ok) {
+    try {
+      const data = await resp.json();
+      if (data.csrf_token) {
+        csrfToken = data.csrf_token;
+      }
+      return data;
+    } catch {
+      return {};
+    }
+  }
+  throw new Error(resp.statusText);
+}
 
 const $=id=>document.getElementById(id);
 const esc=s=>String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
@@ -3327,74 +3540,8 @@ const translateIpType = t => {
 };
 
 const translateCountry = c => {
-  const dict = {
-    "Japan": "日本",
-    "Korea Republic of": "韩国",
-    "Korea": "韩国",
-    "Republic of Korea": "韩国",
-    "Thailand": "泰国",
-    "United States": "美国",
-    "United Kingdom": "英国",
-    "Russian Federation": "俄罗斯",
-    "Russian": "俄罗斯",
-    "Viet Nam": "越南",
-    "Vietnam": "越南",
-    "China": "中国",
-    "Taiwan": "台湾",
-    "Taiwan Province of China": "台湾",
-    "Hong Kong": "香港",
-    "Singapore": "新加坡",
-    "Malaysia": "马来西亚",
-    "Indonesia": "印度尼西亚",
-    "India": "印度",
-    "Philippines": "菲律宾",
-    "Australia": "澳大利亚",
-    "New Zealand": "新西兰",
-    "Canada": "加拿大",
-    "Ukraine": "乌克兰",
-    "France": "法国",
-    "Germany": "德国",
-    "Netherlands": "荷兰",
-    "Sweden": "瑞典",
-    "Norway": "挪威",
-    "Spain": "西班牙",
-    "Turkey": "土耳其",
-    "South Africa": "南非",
-    "Brazil": "巴西",
-    "Argentina": "阿根廷",
-    "Chile": "智利",
-    "Mexico": "墨西哥",
-    "Egypt": "埃及",
-    "Romania": "罗马尼亚",
-    "Poland": "波兰",
-    "Kazakhstan": "哈萨克斯坦",
-    "Georgia": "格鲁吉亚",
-    "Mongolia": "蒙古",
-    "Saudi Arabia": "沙特阿拉伯",
-    "Iran": "伊朗",
-    "Iraq": "伊拉克",
-    "Colombia": "哥伦比亚",
-    "Cambodia": "柬埔寨",
-    "Ireland": "爱尔兰",
-    "Italy": "意大利",
-    "Switzerland": "瑞士",
-    "Belgium": "比利时",
-    "Austria": "奥地利",
-    "Denmark": "丹麦",
-    "Finland": "芬兰",
-    "Portugal": "葡萄牙",
-    "Greece": "希腊",
-    "Czech Republic": "捷克",
-    "Hungary": "匈牙利",
-    "Israel": "以色列",
-    "United Arab Emirates": "阿联酋",
-    "UAE": "阿联酋",
-    "Macao": "澳门",
-    "Macau": "澳门",
-    "Iceland": "冰岛",
-    "Luxembourg": "卢森堡"
-  };
-  return dict[c] || c || "-";
+  if (countryDict[c]) return countryDict[c];
+  return c || "-";
 };
 
 const translateStatus = s => {
@@ -3707,7 +3854,7 @@ async function testNode(btn, id, event){
   render();
   
   try {
-    const response = await fetch("./api/test_node", {
+    const response = await fetchWithCsrf("./api/test_node", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id })
@@ -3729,7 +3876,7 @@ async function testNode(btn, id, event){
 async function toggleFavorite(id, event) {
   if (event) event.stopPropagation();
   try {
-    const response = await fetch("./api/toggle_favorite", {
+    const response = await fetchWithCsrf("./api/toggle_favorite", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id })
@@ -3750,8 +3897,7 @@ function startConnectionPolling() {
   if (pollInterval) clearInterval(pollInterval);
   pollInterval = setInterval(async () => {
     try {
-      const resp = await fetch("./api/nodes");
-      const data = await resp.json();
+      const data = await fetchWithCsrf("./api/nodes");
       nodes = Array.isArray(data.nodes) ? data.nodes : [];
       state = data.state || {};
       stableSortNodes();
@@ -3762,7 +3908,7 @@ function startConnectionPolling() {
         clearInterval(pollInterval);
         pollInterval = null;
         try {
-          await fetch("./api/test_proxy", { method: "POST" });
+          const result = await fetchWithCsrf("./api/test_proxy", { method: "POST" });
         } catch(pe){}
         load();
       }
@@ -3784,7 +3930,7 @@ async function connectNode(id){
   startConnectionPolling();
   
   try {
-    const r = await fetch("./api/connect",{
+    const r = await fetchWithCsrf("./api/connect",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({id})
@@ -3814,11 +3960,11 @@ async function connectNode(id){
 async function disconnectNode(){
   if (!confirm("确定要断开当前的 VPN 连接吗？")) return;
   try {
-    const response = await fetch("./api/disconnect", { method: "POST" });
+    const response = await fetchWithCsrf("./api/disconnect", { method: "POST" });
     const result = await response.json();
     if (result.ok) {
       try {
-        await fetch("./api/test_proxy", { method: "POST" });
+        await fetchWithCsrf("./api/test_proxy", { method: "POST" });
       } catch(pe){}
       load();
     } else {
@@ -3863,12 +4009,24 @@ function toggleSidebarTheme() {
 }
 
 async function load(){
-  const r=await fetch("./api/nodes"); 
+  const r=await fetchWithCsrf("./api/nodes"); 
   const d=await r.json(); 
   nodes=Array.isArray(d.nodes) ? d.nodes : []; 
   console.log("[load] nodes count:", nodes.length, "first node:", nodes[0] ? nodes[0].id : "none");
   state=d.state||{}; 
   console.log("[load] state.last_fetch_status:", state.last_fetch_status);
+  
+  if (state.country_translations) {
+    countryDict = state.country_translations;
+  }
+  
+  // Fetch CSRF token on load
+  try {
+    const csrfResp = await fetchWithCsrf("./api/csrf_token");
+    if (csrfResp.csrf_token) {
+      csrfToken = csrfResp.csrf_token;
+    }
+  } catch(e) {}
   
   stableSortNodes();
   updateCountryFilter();
@@ -3906,7 +4064,7 @@ async function doRefreshNodes(){
   const el=$("sidebar_refresh");
   el.style.pointerEvents="none"; 
   el.style.opacity="0.6"; 
-  try{await fetch("./api/refresh_nodes",{method:"POST"}); await load();} 
+  try{await fetchWithCsrf("./api/refresh_nodes",{method:"POST"}); await load();} 
   catch(e){}
   setTimeout(()=>{
     el.style.pointerEvents=""; 
@@ -3927,7 +4085,7 @@ $("btn_test_proxy").onclick = async () => {
   latVal.textContent = "";
   
   try {
-    const response = await fetch("./api/test_proxy", { method: "POST" });
+    const response = await fetchWithCsrf("./api/test_proxy", { method: "POST" });
     const result = await response.json();
     if (result.ok) {
       badge.className = "badge available";
@@ -4013,7 +4171,7 @@ async function toggleFavRouting() {
   updateFavPanelUI();
   
   try {
-    const res = await fetch("./api/update_routing", {
+    const res = await fetchWithCsrf("./api/update_routing", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -4047,7 +4205,7 @@ async function handleFavFallbackChange(checked) {
   updateFavPanelUI();
   
   try {
-    const res = await fetch("./api/update_routing", {
+    const res = await fetchWithCsrf("./api/update_routing", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -4233,7 +4391,7 @@ async function saveCredentials(e) {
   submitBtn.textContent = "正在保存...";
   
   try {
-    const res = await fetch("./api/update_credentials", {
+    const res = await fetchWithCsrf("./api/update_credentials", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -4387,7 +4545,7 @@ async function saveNetwork(e) {
   submitBtn.textContent = "正在保存...";
   
   try {
-    const res = await fetch("./api/update_settings", {
+    const res = await fetchWithCsrf("./api/update_settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -4444,7 +4602,7 @@ async function saveNetwork(e) {
 
 async function logoutAdmin() {
   try {
-    const res = await fetch("./api/logout", { method: "POST" });
+    const res = await fetchWithCsrf("./api/logout", { method: "POST" });
     if (res.ok) {
       window.location.reload();
     }
@@ -4461,8 +4619,7 @@ load();
 setInterval(async () => {
   if (typeof state !== "undefined" && !state.is_connecting && (!testingNodeIds || !testingNodeIds.size) && document.visibilityState === "visible") {
     try {
-      const r = await fetch("./api/nodes");
-      const d = await r.json();
+      const d = await fetchWithCsrf("./api/nodes");
       nodes = d.nodes || [];
       state = d.state || {};
       stableSortNodes();
@@ -4490,7 +4647,7 @@ function closeGatewayModal() {
 
 async function loadGatewayStatus() {
   try {
-    const res = await fetch("./api/gateway_status");
+    const res = await fetchWithCsrf("./api/gateway_status");
     const data = await res.json();
     if (data.ok && data.services) {
       renderGatewayServices(data.services);
@@ -4548,7 +4705,7 @@ function closeLogsModal() {
 
 async function loadLogs() {
   try {
-    const res = await fetch("./api/logs");
+    const res = await fetchWithCsrf("./api/logs");
     const data = await res.json();
     if (data.logs) {
       rawLogsCache = data.logs;
@@ -4827,7 +4984,7 @@ def background_proxy_checker() -> None:
 
                 # If we intended to have an active VPN node but proxy failed, trigger auto-switch
                 if active_openvpn_node_id:
-                    ui_cfg = load_ui_config()
+                    ui_cfg = _cached_load_ui_config()
                     routing_mode = ui_cfg.get("routing_mode", "auto")
                     if routing_mode != "fixed_ip":
                         with lock:
@@ -4886,11 +5043,11 @@ def active_node_pinger() -> None:
 
 class Handler(BaseHTTPRequestHandler):
     def get_secret_path(self) -> str:
-        ui_cfg = load_ui_config()
+        ui_cfg = _cached_load_ui_config()
         return ui_cfg.get("secret_path", "EJsW2EeBo9lY")
 
     def is_authorized(self) -> bool:
-        ui_cfg = load_ui_config()
+        ui_cfg = _cached_load_ui_config()
         pwd = ui_cfg.get("password")
         if not pwd:
             print("[Auth] 管理后台密码为空，已拒绝访问。请检查 ui_auth.json。", flush=True)
@@ -5007,6 +5164,9 @@ class Handler(BaseHTTPRequestHandler):
             stripped_nodes = []
             for n in nodes:
                 stripped = n.copy()
+                ct = stripped.get("config_text", "")
+                if len(ct) > MAX_CONFIG_TEXT_LENGTH:
+                    stripped["config_text_truncated"] = True
                 if "config_text" in stripped:
                     del stripped["config_text"]
                 stripped_nodes.append(stripped)
@@ -5024,7 +5184,7 @@ class Handler(BaseHTTPRequestHandler):
             web_ui_status = {
                 "name": "Web 管理服务",
                 "status": "running",
-                "details": f"监听地址: {load_ui_config().get('host', UI_HOST)}:{load_ui_config().get('port', UI_PORT)}",
+                "details": f"监听地址: {_cached_load_ui_config().get('host', UI_HOST)}:{_cached_load_ui_config().get('port', UI_PORT)}",
                 "error": ""
             }
             proxy_ok = False
@@ -5117,6 +5277,8 @@ class Handler(BaseHTTPRequestHandler):
                     pinger_status
                 ]
             })
+        elif effective_path == "/api/csrf_token":
+            self.send_json({"ok": True, "csrf_token": _generate_csrf_token()})
         elif effective_path == "/api/logs":
             logs_dir = DATA_DIR / "logs"
             date_str = time.strftime("%Y-%m-%d", time.localtime())
@@ -5135,7 +5297,7 @@ class Handler(BaseHTTPRequestHandler):
                                         pass
                 except Exception as e:
                     print(f"[API Logs] Error reading log file: {e}", flush=True)
-            self.send_json({"logs": entries})
+            self.send_json({"logs": tail, "total": len(entries), "tail": len(tail)})
         else:
             self.send_json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 
@@ -5144,6 +5306,11 @@ class Handler(BaseHTTPRequestHandler):
         if effective_path == "": return
         
         if effective_path == "/api/login":
+            client_ip = self.client_address[0] if not self.client_address[0].startswith("::ffff:") else self.client_address[0][7:]
+            if not _check_login_rate_limit(client_ip):
+                log_to_json("WARNING", "Auth", f"登录频率限制触发，IP: {client_ip}")
+                self.send_json({"ok": False, "error": f"登录尝试过于频繁，请在 {LOGIN_RATE_LIMIT_WINDOW // 60} 分钟后重试"}, HTTPStatus.FORBIDDEN)
+                return
             try:
                 payload = self.read_json_body()
                 input_pwd = str(payload.get("password") or "")
@@ -5154,20 +5321,24 @@ class Handler(BaseHTTPRequestHandler):
                 expected_uname = ui_cfg.get("username", "admin")
                 
                 if expected_pwd and input_pwd == expected_pwd and input_uname == expected_uname:
+                    _record_login_attempt(client_ip)
+                    log_audit("LOGIN_SUCCESS", "Auth", f"用户 {expected_uname} 登录成功", expected_uname)
                     token = uuid.uuid4().hex
                     with lock:
-                        active_sessions[token] = time.time() + 30 * 24 * 3600
-                    body = json.dumps({"ok": True}).encode("utf-8")
+                        active_sessions[token] = time.time() + SESSION_TIMEOUT
+                    body = json.dumps({"ok": True, "csrf_token": _generate_csrf_token()}).encode("utf-8")
                     self.send_response(HTTPStatus.OK)
                     self.send_header("Content-Type", "application/json; charset=utf-8")
                     self.send_header("Content-Length", str(len(body)))
                     self.send_header("Cache-Control", "no-store")
                     secret_path = self.get_secret_path()
                     cookie_path = f"/{secret_path}/" if secret_path else "/"
-                    self.send_header("Set-Cookie", f"session={token}; Path={cookie_path}; HttpOnly; SameSite=Lax; Max-Age=2592000")
+                    self.send_header("Set-Cookie", f"session={token}; Path={cookie_path}; HttpOnly; Secure; SameSite=Lax; Max-Age={SESSION_TIMEOUT}")
                     self.end_headers()
                     self.wfile.write(body)
                 else:
+                    _record_login_attempt(client_ip)
+                    log_audit("LOGIN_FAILED", "Auth", f"登录失败，IP: {client_ip}", input_uname)
                     self.send_json({"ok": False, "error": "用户名或密码不正确，请重新输入"}, HTTPStatus.FORBIDDEN)
             except Exception as exc:
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
@@ -5194,7 +5365,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Content-Length", str(len(body)))
                 self.send_header("Cache-Control", "no-store")
-                self.send_header("Set-Cookie", f"session=; Path={cookie_path}; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
+                self.send_header("Set-Cookie", f"session=; Path={cookie_path}; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
                 self.end_headers()
                 self.wfile.write(body)
             except Exception as exc:
@@ -5205,6 +5376,23 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json({"error": "Unauthorized"}, HTTPStatus.UNAUTHORIZED)
             return
 
+        # CSRF validation for write operations (skip for login/logout)
+        csrf_skip_paths = {"/api/login", "/api/logout"}
+        if effective_path not in csrf_skip_paths:
+            csrf_header = self.headers.get("X-CSRF-Token", "")
+            cookie_csrf = ""
+            cookie_header = self.headers.get("Cookie", "")
+            if cookie_header:
+                for item in cookie_header.split(";"):
+                    item = item.strip()
+                    if item.startswith("csrf_token="):
+                        cookie_csrf = item.split("=", 1)[1].strip()
+            submitted_token = csrf_header or cookie_csrf
+            if not _validate_csrf_token(submitted_token):
+                log_to_json("WARNING", "Auth", "CSRF 令牌验证失败")
+                self.send_json({"ok": False, "error": "CSRF 令牌无效或已过期"}, HTTPStatus.FORBIDDEN)
+                return
+
         if effective_path == "/api/update_credentials":
             try:
                 payload = self.read_json_body()
@@ -5213,7 +5401,7 @@ class Handler(BaseHTTPRequestHandler):
                 new_port = payload.get("port")
                 new_suffix = str(payload.get("secret_path") or "").strip()
                 
-                ui_cfg = load_ui_config()
+                ui_cfg = _cached_load_ui_config()
                 if not new_username or (not new_password and not ui_cfg.get("password")):
                     self.send_json({"ok": False, "error": "用户名不能为空；首次设置时密码不能为空"}, HTTPStatus.BAD_REQUEST)
                     return
@@ -5260,6 +5448,7 @@ class Handler(BaseHTTPRequestHandler):
                     
                     threading.Thread(target=restart_server, daemon=True).start()
                 else:
+                    log_audit("UPDATE_CREDENTIALS", "Auth", f"账号/端口/路径已更新")
                     self.send_json({"ok": True, "restart_needed": False, "reauth_required": reauth_required, "message": "账号密码配置更新成功，已即时生效！"})
             except Exception as exc:
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
@@ -5289,7 +5478,7 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json({"ok": False, "error": "无效的IP出站类型过滤"}, HTTPStatus.BAD_REQUEST)
                     return
                 
-                ui_cfg = load_ui_config()
+                ui_cfg = _cached_load_ui_config()
                 expected_proxy_port = ui_cfg.get("proxy_port", 7928)
                 
                 if new_proxy_port_int == ui_cfg.get("port", 8790):
@@ -5333,6 +5522,7 @@ class Handler(BaseHTTPRequestHandler):
                     
                     threading.Thread(target=restart_server, daemon=True).start()
                 else:
+                    log_audit("UPDATE_SETTINGS", "Settings", f"代理端口: {new_proxy_port_int}, 路由模式: {routing_mode}")
                     self.send_json({"ok": True, "restart_needed": False, "message": "配置更新成功，已即时生效！"})
             except Exception as exc:
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
@@ -5353,7 +5543,7 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json({"ok": False, "error": "无效的IP出站类型过滤"}, HTTPStatus.BAD_REQUEST)
                     return
                 
-                ui_cfg = load_ui_config()
+                ui_cfg = _cached_load_ui_config()
                 ui_cfg["routing_mode"] = routing_mode
                 ui_cfg["force_country"] = force_country
                 ui_cfg["routing_ip_type"] = routing_ip_type
@@ -5370,12 +5560,72 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
             return
 
+        elif effective_path == "/api/audit_logs":
+            with _audit_log_lock:
+                self.send_json({"logs": list(_audit_logs)})
+            return
+
+        elif effective_path == "/api/events":
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "keep-alive")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(f"data: {json.dumps({'type': 'ping', 'data': {'timestamp': time.time()}})}\n\n".encode("utf-8"))
+            self.wfile.flush()
+            return
+
+        elif effective_path == "/api/export_config":
+            try:
+                export_data = {
+                    "version": "1.0",
+                    "exported_at": time.time(),
+                    "ui_config": load_ui_config(),
+                    "state": get_state(),
+                }
+                body = json.dumps(export_data, ensure_ascii=False, indent=2).encode("utf-8")
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Disposition", 'attachment; filename="vpngate_config_backup.json"')
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                log_audit("EXPORT_CONFIG", "Config", "配置备份导出成功")
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+
+        elif effective_path == "/api/import_config":
+            try:
+                body_bytes = self.read_request_body(65536)
+                if not body_bytes:
+                    self.send_json({"ok": False, "error": "请求体为空"}, HTTPStatus.BAD_REQUEST)
+                    return
+                import_data = json.loads(body_bytes.decode("utf-8"))
+                if not isinstance(import_data, dict):
+                    self.send_json({"ok": False, "error": "无效的备份文件格式"}, HTTPStatus.BAD_REQUEST)
+                    return
+                ui_cfg = import_data.get("ui_config")
+                if ui_cfg and isinstance(ui_cfg, dict):
+                    auth_file = DATA_DIR / "ui_auth.json"
+                    with lock:
+                        DATA_DIR.mkdir(exist_ok=True, parents=True)
+                        auth_file.write_text(json.dumps(ui_cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+                log_audit("IMPORT_CONFIG", "Config", "配置备份导入成功")
+                self.send_json({"ok": True, "message": "配置导入成功，已即时生效！"})
+            except json.JSONDecodeError:
+                self.send_json({"ok": False, "error": "备份文件格式错误，不是有效的JSON"}, HTTPStatus.BAD_REQUEST)
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+
         elif effective_path == "/api/toggle_favorite":
             try:
                 payload = self.read_json_body()
                 node_id = str(payload.get("id") or "").strip()
                 
-                ui_cfg = load_ui_config()
+                ui_cfg = _cached_load_ui_config()
                 fav_ids = ui_cfg.get("favorite_node_ids", [])
                 if not isinstance(fav_ids, list):
                     fav_ids = []
@@ -5420,7 +5670,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
         elif effective_path == "/api/disconnect":
             try:
-                ui_cfg = load_ui_config()
+                ui_cfg = _cached_load_ui_config()
                 ui_cfg["connection_enabled"] = False
                 auth_file = DATA_DIR / "ui_auth.json"
                 with lock:
@@ -5437,6 +5687,7 @@ class Handler(BaseHTTPRequestHandler):
                 last_active_ping_time = 0.0
                 last_active_latency = 0
                 set_state(active_openvpn_node_id="", last_check_message="手动断开连接", active_node_latency="无活动连接")
+                broadcast_event("node_disconnected", {})
                 self.send_json({"ok": True})
             except Exception as exc:
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
@@ -5498,6 +5749,12 @@ class Tee:
 
     def __getattr__(self, attr: str) -> Any:
         return getattr(self.stdout, attr)
+
+def session_cleanup_loop() -> None:
+    while True:
+        time.sleep(SESSION_CLEANUP_INTERVAL)
+        _cleanup_expired_sessions()
+
 
 def main() -> None:
     ensure_dirs()
@@ -5572,8 +5829,9 @@ def main() -> None:
     threading.Thread(target=collector_loop, daemon=True).start()
     threading.Thread(target=background_proxy_checker, daemon=True).start()
     threading.Thread(target=active_node_pinger, daemon=True).start()
+    threading.Thread(target=session_cleanup_loop, daemon=True).start()
     
-    ui_cfg = load_ui_config()
+    ui_cfg = _cached_load_ui_config()
     ui_host = ui_cfg.get("host", UI_HOST)
     ui_port = bounded_int(ui_cfg.get("port"), UI_PORT, 1, 65535)
     
