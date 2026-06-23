@@ -116,7 +116,7 @@ OPENVPN_AUTH_PASS = os.environ.get("OPENVPN_AUTH_PASS", "vpn")
 LOCAL_PROXY_HOST = os.environ.get("LOCAL_PROXY_HOST", "127.0.0.1")
 LOCAL_PROXY_PORT = env_int("LOCAL_PROXY_PORT", 7928, 1, 65535)
 UI_HOST = os.environ.get("UI_HOST", "::")
-UI_PORT = env_int("UI_PORT", 8787, 1, 65535)
+UI_PORT = env_int("UI_PORT", 8790, 1, 65535)
 INVALID_BACKOFF_SECONDS = env_int("INVALID_BACKOFF_SECONDS", 30 * 60, 1)
 
 ROOT_DIR = Path(sys.executable).resolve().parent if globals().get("__compiled__") else Path(__file__).resolve().parent
@@ -381,7 +381,7 @@ def get_state() -> dict[str, Any]:
     # Pre-populate settings inputs in UI
     ui_cfg = load_ui_config()
     state["username"] = ui_cfg.get("username", "admin")
-    state["port"] = ui_cfg.get("port", 8787)
+    state["port"] = ui_cfg.get("port", 8790)
     state["secret_path"] = ui_cfg.get("secret_path", "EJsW2EeBo9lY")
     state["password_set"] = bool(ui_cfg.get("password"))
     state["proxy_port"] = ui_cfg.get("proxy_port", 7928)
@@ -2171,7 +2171,6 @@ INDEX_HTML = r"""<!doctype html>
       display: flex; flex-direction: column;
       position: fixed; top: 0; left: 0; bottom: 0;
       z-index: 200;
-      overflow-y: auto;
     }
     [data-theme="dark"] .sidebar { background: #15161a; border-right-color: #1e293b; }
 
@@ -2202,8 +2201,10 @@ INDEX_HTML = r"""<!doctype html>
 
     .sidebar-nav {
       flex: 1;
+      min-height: 0;
       padding: 12px 10px;
       display: flex; flex-direction: column; gap: 2px;
+      overflow-y: auto;
     }
     .nav-item {
       display: flex; align-items: center; gap: 10px;
@@ -2241,21 +2242,22 @@ INDEX_HTML = r"""<!doctype html>
     .sub-item { padding-left: 40px !important; font-size: 13px; }
 
     .sidebar-footer {
-      padding: 12px 10px;
+      padding: 12px 10px 16px;
       border-top: 1px solid #e2e8f0;
+      flex-shrink: 0;
     }
     [data-theme="dark"] .sidebar-footer { border-top-color: rgba(255,255,255,0.06); }
     .sidebar-theme-btn {
       display: flex; align-items: center; gap: 10px;
       padding: 10px 14px; border-radius: 8px;
-      color: #64748b; font-size: 13px;
-      cursor: pointer; border: none; background: transparent;
+      color: #475569; font-size: 13px; font-weight: 500;
+      cursor: pointer; border: 1px solid #e2e8f0; background: #f8fafc;
       width: 100%; font-family: inherit;
       transition: all .15s;
     }
-    .sidebar-theme-btn:hover { background: #f1f5f9; color: #1e293b; }
-    [data-theme="dark"] .sidebar-theme-btn { color: rgba(255,255,255,0.5); }
-    [data-theme="dark"] .sidebar-theme-btn:hover { background: rgba(255,255,255,0.06); color: #fff; }
+    .sidebar-theme-btn:hover { background: #eef2ff; color: #6366f1; border-color: #c7d2fe; }
+    [data-theme="dark"] .sidebar-theme-btn { color: #cbd5e1; border-color: #334155; background: #1e293b; }
+    [data-theme="dark"] .sidebar-theme-btn:hover { background: #334155; color: #fff; border-color: #475569; }
 
     .content {
       flex: 1;
@@ -2823,23 +2825,8 @@ INDEX_HTML = r"""<!doctype html>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
         节点管理
       </a>
-      <a class="nav-item" id="nav_logs" href="javascript:void(0)" onclick="openLogsModal()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-        操作日志
-      </a>
-
-      <div class="sidebar-divider"></div>
-
-      <a class="nav-item" href="https://github.com/kadiswang/aimili-vpngate" target="_blank">
-        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
-        GitHub
-      </a>
-      <a class="nav-item" href="https://t.me/arestemple" target="_blank">
-        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8.287 5.906c-.778.324-2.334.994-4.666 2.01-.378.15-.577.298-.595.442-.03.243.275.339.69.47l.175.055c.408.133.958.288 1.243.294.26.006.549-.1.868-.32 2.179-1.471 3.304-2.214 3.374-2.23.05-.012.12-.026.166.016.047.041.042.12.037.141-.03.129-1.227 1.241-1.846 1.817-.193.18-.33.307-.358.336-.063.065-.129.13-.19.193-.34.347-.597.609-.043.974.265.175.474.319.684.457.228.15.457.301.765.503.074.049.143.098.207.143.297.206.58.404.916.373.195-.018.398-.2.502-.754.25-1.332.74-4.22.842-5.281.01-.088.001-.22-.103-.312-.104-.092-.252-.09-.323-.087a1.52 1.52 0 0 0-.254.04z"/></svg>
-        Telegram
-      </a>
       <a class="nav-item" id="sidebar_refresh" href="javascript:void(0)" onclick="doRefreshNodes()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 1B21.21 8H18.5"/></svg>
         更新节点
       </a>
 
@@ -2852,28 +2839,39 @@ INDEX_HTML = r"""<!doctype html>
           <svg class="submenu-arrow" id="settings_arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
         </button>
         <div class="submenu-items" id="settings_submenu" style="display:none;">
-          <a class="nav-item sub-item" href="javascript:void(0)" onclick="openCredentialsModal()">
+          <a class="nav-item sub-item" href="javascript:void(0)" onclick="event.stopPropagation(); openCredentialsModal();">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
             网页安全
           </a>
-          <a class="nav-item sub-item" href="javascript:void(0)" onclick="openNetworkModal()">
+          <a class="nav-item sub-item" href="javascript:void(0)" onclick="event.stopPropagation(); openNetworkModal();">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
             代理设置
           </a>
-          <a class="nav-item sub-item" href="javascript:void(0)" onclick="openGatewayModal()">
+          <a class="nav-item sub-item" href="javascript:void(0)" onclick="event.stopPropagation(); openGatewayModal();">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
             网关设置
           </a>
-          <a class="nav-item sub-item" href="javascript:void(0)" onclick="openLogsModal()">
+          <a class="nav-item sub-item" href="javascript:void(0)" onclick="event.stopPropagation(); openLogsModal();">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
             日志
           </a>
-          <a class="nav-item sub-item nav-item-danger" href="javascript:void(0)" onclick="logoutAdmin()">
+          <a class="nav-item sub-item nav-item-danger" href="javascript:void(0)" onclick="event.stopPropagation(); logoutAdmin();">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
             退出
           </a>
         </div>
       </div>
+
+      <div class="sidebar-divider"></div>
+
+      <a class="nav-item" href="https://github.com/kadiswang/aimili-vpngate" target="_blank">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub
+      </a>
+      <a class="nav-item" href="https://t.me/arestemple" target="_blank">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8.287 5.906c-.778.324-2.334.994-4.666 2.01-.378.15-.577.298-.595.442-.03.243.275.339.69.47l.175.055c.408.133.958.288 1.243.294.26.006.549-.1.868-.32 2.179-1.471 3.304-2.214 3.374-2.23.05-.012.12-.026.166.016.047.041.042.12.037.141-.03.129-1.227 1.241-1.846 1.817-.193.18-.33.307-.358.336-.063.065-.129.13-.19.193-.34.347-.597.609-.043.974.265.175.474.319.684.457.228.15.457.301.765.503.074.049.143.098.207.143.297.206.58.404.916.373.195-.018.398-.2.502-.754.25-1.332.74-4.22.842-5.281.01-.088.001-.22-.103-.312-.104-.092-.252-.09-.323-.087a1.52 1.52 0 0 0-.254.04z"/></svg>
+        Telegram
+      </a>
     </nav>
     <div class="sidebar-footer">
       <button class="sidebar-theme-btn" id="sidebar_theme_btn" onclick="toggleSidebarTheme()">
@@ -3023,7 +3021,7 @@ INDEX_HTML = r"""<!doctype html>
 
         <div class="form-group" style="margin-bottom: 12px;">
           <label class="form-label" for="cred_port">网页管理端口</label>
-          <input type="number" id="cred_port" class="input-field" required min="1" max="65535" placeholder="8787">
+          <input type="number" id="cred_port" class="input-field" required min="1" max="65535" placeholder="8790">
         </div>
         
         <div class="form-group" style="margin-bottom: 20px;">
@@ -4090,11 +4088,10 @@ function openCredentialsModal() {
   if (state) {
     $("cred_username").value = state.username || "";
     $("cred_password").value = "";
-    $("cred_port").value = state.port || 8787;
+    $("cred_port").value = state.port || 8790;
     $("cred_suffix").value = state.secret_path || "";
   }
   $("credentials_modal").style.display = "flex";
-  $("admin_dropdown").style.display = "none";
 }
 
 function closeCredentialsModal() {
@@ -4210,7 +4207,6 @@ function openNetworkModal() {
   
   populateRoutingCountries();
   $("network_modal").style.display = "flex";
-  $("admin_dropdown").style.display = "none";
 }
 
 function closeNetworkModal() {
@@ -4332,7 +4328,6 @@ setInterval(async () => {
 let gatewayPollInterval = null;
 
 function openGatewayModal() {
-  $("admin_dropdown").style.display = "none";
   $("gateway_modal").style.display = "flex";
   loadGatewayStatus();
   if (gatewayPollInterval) clearInterval(gatewayPollInterval);
@@ -5091,7 +5086,7 @@ class Handler(BaseHTTPRequestHandler):
 
                 expected_username = ui_cfg.get("username", "")
                 expected_password = ui_cfg.get("password", "")
-                expected_port = ui_cfg.get("port", 8787)
+                expected_port = ui_cfg.get("port", 8790)
                 expected_suffix = ui_cfg.get("secret_path", "EJsW2EeBo9lY")
 
                 ui_cfg["username"] = new_username
@@ -5151,7 +5146,7 @@ class Handler(BaseHTTPRequestHandler):
                 ui_cfg = load_ui_config()
                 expected_proxy_port = ui_cfg.get("proxy_port", 7928)
                 
-                if new_proxy_port_int == ui_cfg.get("port", 8787):
+                if new_proxy_port_int == ui_cfg.get("port", 8790):
                     self.send_json({"ok": False, "error": "代理出站端口不能与网页管理端口相同"}, HTTPStatus.BAD_REQUEST)
                     return
                 
