@@ -5334,7 +5334,7 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_header("Cache-Control", "no-store")
                     secret_path = self.get_secret_path()
                     cookie_path = f"/{secret_path}/" if secret_path else "/"
-                    self.send_header("Set-Cookie", f"session={token}; Path={cookie_path}; HttpOnly; Secure; SameSite=Lax; Max-Age={SESSION_TIMEOUT}")
+                    self.send_header("Set-Cookie", f"session={token}; Path={cookie_path}; HttpOnly; SameSite=Lax; Max-Age=2592000")
                     self.end_headers()
                     self.wfile.write(body)
                 else:
@@ -5366,7 +5366,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Content-Length", str(len(body)))
                 self.send_header("Cache-Control", "no-store")
-                self.send_header("Set-Cookie", f"session=; Path={cookie_path}; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
+                self.send_header("Set-Cookie", f"session=; Path={cookie_path}; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT")
                 self.end_headers()
                 self.wfile.write(body)
             except Exception as exc:
