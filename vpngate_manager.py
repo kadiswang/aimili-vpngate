@@ -3499,7 +3499,7 @@ let nodes=[], state={}, testingNodeIds = new Set();
 let currentPage = 1;
 const pageSize = 99999;
 let currentPageNodes = [];
-let countryDict: Record<string, string> = {};
+let countryDict = {};
 let csrfToken = "";
 
 async function fetchWithCsrf(url, options = {}) {
