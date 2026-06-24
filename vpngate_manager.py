@@ -5535,7 +5535,7 @@ class Handler(BaseHTTPRequestHandler):
                                         pass
                 except Exception as e:
                     print(f"[API Logs] Error reading log file: {e}", flush=True)
-            self.send_json({"logs": tail, "total": len(entries), "tail": len(tail)})
+            self.send_json({"logs": entries, "total": len(entries), "tail": len(entries)})
         else:
             self.send_json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 
