@@ -4297,6 +4297,7 @@ async function load(){
   
   stableSortNodes();
   updateCountryFilter();
+  populateRoutingCountries();
   render();
 
   if (state.is_connecting) {
