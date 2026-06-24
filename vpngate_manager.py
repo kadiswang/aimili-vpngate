@@ -110,6 +110,8 @@ CHECK_INTERVAL_SECONDS = env_int("CHECK_INTERVAL_SECONDS", 1260, 1)
 TARGET_VALID_NODES = env_int("TARGET_VALID_NODES", 3, 1)
 MAX_SCAN_ROWS = env_int("MAX_SCAN_ROWS", 300, 1)
 OPENVPN_TEST_TIMEOUT_SECONDS = env_int("OPENVPN_TEST_TIMEOUT_SECONDS", 35, 1)
+MANUAL_TEST_NODE_LIMIT = env_int("MANUAL_TEST_NODE_LIMIT", 5, 1, 20)
+INITIAL_CONNECT_TEST_LIMIT = env_int("INITIAL_CONNECT_TEST_LIMIT", 10, 1, 50)
 OPENVPN_CMD = os.environ.get("OPENVPN_CMD", "openvpn")
 OPENVPN_AUTH_USER = os.environ.get("OPENVPN_AUTH_USER", "vpn")
 OPENVPN_AUTH_PASS = os.environ.get("OPENVPN_AUTH_PASS", "vpn")
@@ -250,7 +252,7 @@ def load_ui_config() -> dict[str, Any]:
         if not auth_file.exists() or updated:
             try:
                 DATA_DIR.mkdir(exist_ok=True, parents=True)
-                auth_file.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
+                write_json(auth_file, config)
             except Exception:
                 pass
                 
@@ -384,7 +386,7 @@ def load_ui_config() -> dict[str, Any]:
         if not auth_file.exists() or updated:
             try:
                 DATA_DIR.mkdir(exist_ok=True, parents=True)
-                auth_file.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
+                write_json(auth_file, config)
             except Exception:
                 pass
                 
@@ -582,6 +584,7 @@ def get_state() -> dict[str, Any]:
     state["fav_fail_fallback"] = ui_cfg.get("fav_fail_fallback", True)
     state["upstream_proxy"] = ui_cfg.get("upstream_proxy", { "enabled": False })
     state["country_translations"] = vpn_utils.COUNTRY_TRANSLATIONS
+    state["maintenance_running"] = maintenance_lock.locked()
     
     return state
 
@@ -1388,7 +1391,7 @@ def sort_all_nodes(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
         )
     )
     untested_nodes = sorted(
-        [n for n in nodes if n.get("probe_status") == "not_checked" and not n.get("active")],
+        [n for n in nodes if n.get("probe_status") in ("not_checked", "testing") and not n.get("active")],
         key=lambda n: (-parse_int(n.get("score")), parse_int(n.get("ping")))
     )
     unavailable_nodes = sorted(
@@ -1396,6 +1399,146 @@ def sort_all_nodes(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
         key=lambda n: (-parse_int(n.get("score")), -float(n.get("probed_at", 0)))
     )
     return available_nodes + untested_nodes + unavailable_nodes
+
+def apply_routing_filters(
+    nodes: list[dict[str, Any]],
+    ui_cfg: dict[str, Any],
+    include_unknown_ip_type: bool = False,
+) -> list[dict[str, Any]]:
+    candidates = list(nodes)
+    routing_mode = ui_cfg.get("routing_mode", "auto")
+    target_country = ui_cfg.get("force_country", "")
+
+    if routing_mode == "fixed_region" and target_country:
+        candidates = [
+            n for n in candidates
+            if country_matches(n.get("country"), target_country)
+        ]
+    elif routing_mode == "favorites":
+        fav_ids = set(ui_cfg.get("favorite_node_ids", []))
+        candidates = [n for n in candidates if n.get("id") in fav_ids]
+
+    routing_ip_type = ui_cfg.get("routing_ip_type", "all")
+    if routing_ip_type == "residential":
+        candidates = [
+            n for n in candidates
+            if n.get("ip_type") in ("residential", "mobile")
+            or (include_unknown_ip_type and not n.get("ip_type"))
+        ]
+    elif routing_ip_type == "hosting":
+        candidates = [
+            n for n in candidates
+            if n.get("ip_type") == "hosting"
+            or (include_unknown_ip_type and not n.get("ip_type"))
+        ]
+
+    return candidates
+
+def normalized_country_name(country: Any) -> str:
+    value = str(country or "").strip()
+    return vpn_utils.COUNTRY_TRANSLATIONS.get(value, value)
+
+def country_matches(node_country: Any, target_country: Any) -> bool:
+    return bool(target_country) and normalized_country_name(node_country) == normalized_country_name(target_country)
+
+def probe_priority_key(node: dict[str, Any]) -> tuple[int, int, int, int]:
+    ping = parse_int(node.get("ping")) or 999999
+    return (
+        ping,
+        -parse_int(node.get("score")),
+        -parse_int(node.get("speed")),
+        parse_int(node.get("sessions")),
+    )
+
+def current_fixed_node_id(ui_cfg: dict[str, Any]) -> str:
+    if active_openvpn_node_id:
+        return active_openvpn_node_id
+    nodes = read_nodes()
+    active_node = next((n for n in nodes if n.get("active") and n.get("id")), None)
+    if active_node:
+        return str(active_node.get("id") or "")
+    return str(ui_cfg.get("fixed_node_id") or "").strip()
+
+def validate_node_allowed_by_routing(node: dict[str, Any], ui_cfg: dict[str, Any]) -> None:
+    routing_mode = ui_cfg.get("routing_mode", "auto")
+    node_id = str(node.get("id") or "")
+
+    if routing_mode == "fixed_region":
+        target_country = ui_cfg.get("force_country", "")
+        if target_country and not country_matches(node.get("country"), target_country):
+            raise RuntimeError(f"当前已锁定国家【{target_country}】，不能连接其他国家节点")
+    elif routing_mode == "favorites":
+        fav_ids = set(ui_cfg.get("favorite_node_ids", []))
+        if node_id not in fav_ids:
+            raise RuntimeError("当前处于仅用收藏模式，不能连接未收藏节点")
+
+    routing_ip_type = ui_cfg.get("routing_ip_type", "all")
+    node_ip_type = node.get("ip_type")
+    if routing_ip_type == "residential" and node_ip_type not in ("residential", "mobile"):
+        raise RuntimeError("当前已锁定住宅 IP 出站，不能连接非住宅节点")
+    if routing_ip_type == "hosting" and node_ip_type != "hosting":
+        raise RuntimeError("当前已锁定机房 IP 出站，不能连接非机房节点")
+
+def enforce_active_node_allowed_by_routing(ui_cfg: dict[str, Any], reason: str = "路由规则已更新") -> str | None:
+    active_id = active_openvpn_node_id
+    if not active_id:
+        return None
+
+    nodes = read_nodes()
+    active_node = next((item for item in nodes if item.get("id") == active_id), None)
+    if not active_node:
+        clear_active_connection_state(f"{reason}，当前活动节点已不在节点列表中，已断开连接")
+        return "当前活动节点已不在节点列表中，已断开连接"
+
+    try:
+        validate_node_allowed_by_routing(active_node, ui_cfg)
+        return None
+    except Exception as exc:
+        msg = f"{reason}，当前活动节点 {active_id} 不符合新规则，已断开连接: {exc}"
+        print(f"[路由规则] {msg}", flush=True)
+        log_to_json("WARNING", "Routing", msg)
+        stop_active_openvpn()
+        with lock:
+            nodes = read_nodes()
+            for item in nodes:
+                item["active"] = False
+            write_json(NODES_FILE, nodes)
+        set_state(
+            active_openvpn_node_id="",
+            active_node_latency="无活动连接",
+            proxy_ok=False,
+            proxy_ip="-",
+            proxy_latency_ms=0,
+            proxy_error=msg,
+            last_check_message=msg,
+        )
+
+        if ui_cfg.get("connection_enabled", True) and ui_cfg.get("routing_mode") != "fixed_ip":
+            threading.Thread(target=auto_switch_node, daemon=True).start()
+        return msg
+
+def reconnect_fixed_node_if_needed(ui_cfg: dict[str, Any]) -> bool:
+    global is_connecting
+    if ui_cfg.get("routing_mode") != "fixed_ip" or active_openvpn_running():
+        return False
+    target_id = current_fixed_node_id(ui_cfg)
+    if not target_id:
+        return False
+    nodes = read_nodes()
+    if not any(n.get("id") == target_id for n in nodes):
+        return False
+
+    print(f"[维护线程] 固定 IP 模式下 OpenVPN 未运行，正在重新拉起同一节点: {target_id}", flush=True)
+    previous_connecting = is_connecting
+    is_connecting = False
+    try:
+        connect_node(target_id)
+        return active_openvpn_running()
+    except Exception as e:
+        print(f"[维护线程] 重新拉起固定节点 {target_id} 失败: {e}", flush=True)
+        return False
+    finally:
+        is_connecting = previous_connecting
 
 active_test_indexes = set()
 test_indexes_lock = threading.Lock()
@@ -1697,6 +1840,7 @@ def connect_node(node_id: str) -> str:
             raise ValueError(f"Node not found: {node_id}")
         
         ui_cfg = _cached_load_ui_config()
+        validate_node_allowed_by_routing(node, ui_cfg)
         ui_cfg["connection_enabled"] = True
         if ui_cfg.get("routing_mode") == "fixed_ip":
             ui_cfg["fixed_node_id"] = node_id
@@ -1816,17 +1960,7 @@ def maintain_valid_nodes(force: bool = False) -> str:
             connection_enabled = ui_cfg.get("connection_enabled", True)
             if connection_enabled:
                 if routing_mode == "fixed_ip":
-                    target_id = active_openvpn_node_id or ui_cfg.get("fixed_node_id", "")
-                    if target_id:
-                        nodes = read_nodes()
-                        if any(n.get("id") == target_id for n in nodes):
-                            print(f"[维护线程] 检测到固定 IP 模式下 OpenVPN 未运行，正在重新拉起同一节点: {target_id}", flush=True)
-                            is_connecting = False
-                            try:
-                                connect_node(target_id)
-                            except Exception as e:
-                                print(f"[维护线程] 重新拉起固定节点 {target_id} 失败: {e}", flush=True)
-                            is_connecting = True
+                    reconnect_fixed_node_if_needed(ui_cfg)
                 else:
                     has_active_id = False
                     with lock:
@@ -5434,7 +5568,7 @@ class Handler(BaseHTTPRequestHandler):
                 reauth_required = new_username != expected_username or (new_password and new_password != expected_password)
                 with lock:
                     DATA_DIR.mkdir(exist_ok=True, parents=True)
-                    auth_file.write_text(json.dumps(ui_cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+                    write_json(auth_file, ui_cfg)
                     if reauth_required:
                         active_sessions.clear()
                 
@@ -5510,7 +5644,9 @@ class Handler(BaseHTTPRequestHandler):
                 auth_file = DATA_DIR / "ui_auth.json"
                 with lock:
                     DATA_DIR.mkdir(exist_ok=True, parents=True)
-                    auth_file.write_text(json.dumps(ui_cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+                    write_json(auth_file, ui_cfg)
+                
+                policy_message = enforce_active_node_allowed_by_routing(ui_cfg, "路由设置已更新")
                 
                 restart_needed = (new_proxy_port_int != expected_proxy_port)
                 if restart_needed:
@@ -5554,7 +5690,9 @@ class Handler(BaseHTTPRequestHandler):
                 auth_file = DATA_DIR / "ui_auth.json"
                 with lock:
                     DATA_DIR.mkdir(exist_ok=True, parents=True)
-                    auth_file.write_text(json.dumps(ui_cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+                    write_json(auth_file, ui_cfg)
+                
+                enforce_active_node_allowed_by_routing(ui_cfg, "出站路由配置已更新")
                 
                 self.send_json({"ok": True, "message": "出站路由配置更新成功，已即时生效！"})
             except Exception as exc:
@@ -5612,7 +5750,7 @@ class Handler(BaseHTTPRequestHandler):
                     auth_file = DATA_DIR / "ui_auth.json"
                     with lock:
                         DATA_DIR.mkdir(exist_ok=True, parents=True)
-                        auth_file.write_text(json.dumps(ui_cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+                        write_json(auth_file, ui_cfg)
                 log_audit("IMPORT_CONFIG", "Config", "配置备份导入成功")
                 self.send_json({"ok": True, "message": "配置导入成功，已即时生效！"})
             except json.JSONDecodeError:
@@ -5640,7 +5778,10 @@ class Handler(BaseHTTPRequestHandler):
                 auth_file = DATA_DIR / "ui_auth.json"
                 with lock:
                     DATA_DIR.mkdir(exist_ok=True, parents=True)
-                    auth_file.write_text(json.dumps(ui_cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+                    write_json(auth_file, ui_cfg)
+                
+                if ui_cfg.get("routing_mode") == "favorites":
+                    enforce_active_node_allowed_by_routing(ui_cfg, "收藏列表已更新")
                 
                 self.send_json({"ok": True, "favorite_node_ids": fav_ids})
             except Exception as exc:
@@ -5676,7 +5817,7 @@ class Handler(BaseHTTPRequestHandler):
                 auth_file = DATA_DIR / "ui_auth.json"
                 with lock:
                     DATA_DIR.mkdir(exist_ok=True, parents=True)
-                    auth_file.write_text(json.dumps(ui_cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+                    write_json(auth_file, ui_cfg)
                 
                 stop_active_openvpn()
                 with lock:
