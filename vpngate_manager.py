@@ -440,11 +440,15 @@ def _validate_csrf_token(token: str | None) -> bool:
     if not token:
         return False
     with _csrf_lock:
-        entry = _csrf_tokens.pop(token, None)
-    if entry is None:
-        return False
-    expiry, _ = entry
-    return expiry > time.time()
+        entry = _csrf_tokens.get(token)
+        if not entry:
+            return False
+        expiry, _ = entry
+        if time.time() > expiry:
+            _csrf_tokens.pop(token, None)
+            return False
+        _csrf_tokens[token] = (time.time() + CSRF_TOKEN_EXPIRY, token)
+        return True
     salt = "aimilivpn_secure_salt_2026"
     return hashlib.sha256((username + ":" + password + salt).encode("utf-8")).hexdigest()
 
@@ -4421,11 +4425,10 @@ async function toggleFavRouting() {
         fav_fail_fallback: state.fav_fail_fallback !== false
       })
     });
-    const data = await res.json();
-    if (res.ok && data.ok) {
+    if (res.ok) {
       load();
     } else {
-      alert("更新出站路由设置失败: " + (data.error || "未知错误"));
+      alert("更新出站路由设置失败: " + (res.error || "未知错误"));
       load();
     }
   } catch (err) {
@@ -4455,11 +4458,10 @@ async function handleFavFallbackChange(checked) {
         fav_fail_fallback: checked
       })
     });
-    const data = await res.json();
-    if (res.ok && data.ok) {
+    if (res.ok) {
       load();
     } else {
-      alert("更新失败: " + (data.error || "未知错误"));
+      alert("更新失败: " + (res.error || "未知错误"));
       load();
     }
   } catch (err) {
@@ -4642,9 +4644,8 @@ async function saveCredentials(e) {
       })
     });
     
-    const data = await res.json();
-    if (res.ok && data.ok) {
-      if (data.restart_needed) {
+    if (res.ok) {
+      if (res.restart_needed) {
         successDiv.textContent = "保存成功！网页管理端口或路径已变更，页面将在 4 秒内自动跳转...";
         successDiv.style.display = "block";
         
@@ -4657,10 +4658,10 @@ async function saveCredentials(e) {
           window.location.href = `${protocol}//${host}:${port}/${suffix}/`;
         }, 4000);
       } else {
-        successDiv.textContent = data.reauth_required ? "账号密码保存成功，请重新登录..." : "账号密码保存成功，已即时生效！";
+        successDiv.textContent = res.reauth_required ? "账号密码保存成功，请重新登录..." : "账号密码保存成功，已即时生效！";
         successDiv.style.display = "block";
         setTimeout(() => {
-          if (data.reauth_required) {
+          if (res.reauth_required) {
             window.location.reload();
           } else {
             closeCredentialsModal();
@@ -4669,7 +4670,7 @@ async function saveCredentials(e) {
         }, 1500);
       }
     } else {
-      errorDivEl.textContent = data.error || "保存失败，请检查输入";
+      errorDivEl.textContent = res.error || "保存失败，请检查输入";
       errorDivEl.style.display = "block";
       submitBtn.disabled = false;
       submitBtn.textContent = "保存修改";
@@ -4804,9 +4805,8 @@ async function saveNetwork(e) {
       })
     });
     
-    const data = await res.json();
-    if (res.ok && data.ok) {
-      if (data.restart_needed) {
+    if (res.ok) {
+      if (res.restart_needed) {
         successDiv.textContent = "保存成功！代理出站端口已变更，页面将在 4 秒内自动刷新...";
         successDiv.style.display = "block";
         
@@ -4825,7 +4825,7 @@ async function saveNetwork(e) {
         }, 1500);
       }
     } else {
-      errorDivEl.textContent = data.error || "保存失败，请检查输入";
+      errorDivEl.textContent = res.error || "保存失败，请检查输入";
       errorDivEl.style.display = "block";
       submitBtn.disabled = false;
       submitBtn.textContent = "保存修改";
@@ -4888,9 +4888,8 @@ function closeGatewayModal() {
 async function loadGatewayStatus() {
   try {
     const res = await fetchWithCsrf("./api/gateway_status");
-    const data = await res.json();
-    if (data.ok && data.services) {
-      renderGatewayServices(data.services);
+    if (res.ok && res.services) {
+      renderGatewayServices(res.services);
     }
   } catch (e) {
     console.error("加载网关状态失败", e);
@@ -4946,9 +4945,8 @@ function closeLogsModal() {
 async function loadLogs() {
   try {
     const res = await fetchWithCsrf("./api/logs");
-    const data = await res.json();
-    if (data.logs) {
-      rawLogsCache = data.logs;
+    if (res.logs) {
+      rawLogsCache = res.logs;
       filterAndRenderLogs();
     }
   } catch (e) {
