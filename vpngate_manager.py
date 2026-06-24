@@ -3253,6 +3253,29 @@ INDEX_HTML = r"""<!doctype html>
     <section class="active-node-section" id="active_node_card" style="margin-bottom: 24px;">
       <!-- Rendered dynamically by render() -->
     </section>
+
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
+      <span style="font-size: 15px; font-weight: 600; color: var(--text-primary);">节点列表</span>
+      <span id="overview_filter_label" style="font-size: 12px; color: var(--text-secondary);"></span>
+    </div>
+
+    <div class="table-wrapper" style="margin-top: 0;">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 90px;">状态</th>
+              <th style="width: 160px;">IP 地址 : 端口</th>
+              <th>物理位置</th>
+              <th style="width: 80px;">IP 类型</th>
+              <th style="width: 80px;">延迟</th>
+              <th style="width: 160px;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="overview_rows"></tbody>
+        </table>
+      </div>
+    </div>
     </div>
 
     <div id="page_nodes" class="page-content" style="display:none;">
@@ -3833,6 +3856,8 @@ function render(){
     `;
   }
 
+  renderOverviewNodes(activeNode);
+
   const shown = getFilteredNodes();
   console.log("[render] shown count:", shown.length, "currentPageNodes:", currentPageNodes.length);
   
@@ -3966,6 +3991,80 @@ function render(){
   $("btn_prev_page").disabled = currentPage === 1;
   $("btn_next_page").disabled = currentPage === totalPages;
   $("btn_last_page").disabled = currentPage === totalPages;
+}
+
+function renderOverviewNodes(activeNode) {
+  const container = $("overview_rows");
+  const label = $("overview_filter_label");
+  if (!container) return;
+
+  const routingMode = state.routing_mode || "auto";
+  const routingIpType = state.routing_ip_type || "all";
+  const forceCountry = state.force_country || "";
+  const favIds = Array.isArray(state.favorite_node_ids) ? state.favorite_node_ids : [];
+
+  let filtered = nodes.filter(function(n) { return n && n.id; });
+
+  if (routingMode === "fixed_region" && forceCountry) {
+    filtered = filtered.filter(function(n) {
+      return n.country === forceCountry || (countryDict[n.country] || n.country) === forceCountry;
+    });
+  } else if (routingMode === "favorites") {
+    filtered = filtered.filter(function(n) { return favIds.includes(n.id); });
+  }
+
+  if (routingIpType === "residential") {
+    filtered = filtered.filter(function(n) { return n.ip_type === "residential" || n.ip_type === "mobile"; });
+  } else if (routingIpType === "hosting") {
+    filtered = filtered.filter(function(n) { return n.ip_type === "hosting"; });
+  }
+
+  // Sort: available first (by latency), then by status
+  filtered.sort(function(a, b) {
+    if (a.probe_status === "available" && b.probe_status !== "available") return -1;
+    if (b.probe_status === "available" && a.probe_status !== "available") return 1;
+    if (a.probe_status === "available" && b.probe_status === "available") {
+      return (parseInt(a.latency_ms) || 999999) - (parseInt(b.latency_ms) || 999999);
+    }
+    return 0;
+  });
+
+  // Build filter label
+  var parts = [];
+  if (routingMode === "fixed_region" && forceCountry) parts.push(forceCountry);
+  else if (routingMode === "favorites") parts.push("收藏节点");
+  else parts.push("自动配置");
+  if (routingIpType === "residential") parts.push("住宅IP");
+  else if (routingIpType === "hosting") parts.push("机房IP");
+  else parts.push("所有IP");
+  label.textContent = parts.join(" + ") + " (" + filtered.length + " 个节点)";
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-secondary);padding:30px 0;">暂无符合条件的节点</td></tr>';
+    return;
+  }
+
+  container.innerHTML = filtered.map(function(n) {
+    var isActive = activeNode && n.id === activeNode.id;
+    var badgeClass = isActive ? "available" : (n.probe_status || "not_checked");
+    var badgeText = isActive ? '<span class="badge-pulse"></span>已连接' : translateStatus(n.probe_status);
+    var latencyClass = getLatencyClass(n.latency_ms);
+    var latencyText = n.latency_ms ? '<span class="latency-val ' + latencyClass + '">' + n.latency_ms + ' ms</span>' : "-";
+    var displayLocation = n.location || translateCountry(n.country) || "-";
+    var isUnavailable = n.probe_status === "unavailable";
+    var connectBtn = isActive
+      ? '<button class="connect-btn" disabled style="background:var(--success-gradient);color:white;cursor:default;opacity:1;">已连接</button>'
+      : '<button class="connect-btn" ' + ((isUnavailable || state.is_connecting) ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : '') + ' onclick="connectNode(\'' + esc(n.id) + '\')">切换</button>';
+
+    return '<tr' + (isActive ? ' class="active-row"' : '') + ' style="display:table-row!important;">' +
+      '<td style="display:table-cell!important;"><span class="badge ' + badgeClass + '">' + badgeText + '</span></td>' +
+      '<td class="mono" style="white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis;display:table-cell!important;" title="' + esc(n.ip||n.remote_host) + ':' + (n.remote_port||"") + '">' + esc(n.ip||n.remote_host) + ':' + (n.remote_port||"") + '</td>' +
+      '<td style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:table-cell!important;" title="' + esc(displayLocation) + '">' + esc(displayLocation) + '</td>' +
+      '<td style="white-space:nowrap;display:table-cell!important;">' + esc(translateIpType(n.ip_type)) + '</td>' +
+      '<td style="white-space:nowrap;display:table-cell!important;">' + latencyText + '</td>' +
+      '<td style="display:table-cell!important;">' + connectBtn + '</td>' +
+      '</tr>';
+  }).join("");
 }
 
 // Hook up page buttons events
