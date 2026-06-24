@@ -141,9 +141,10 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=${INSTALL_DIR}
-ExecStart=/usr/bin/python3 vpngate_manager.py
+ExecStart=/usr/bin/python3 ${INSTALL_DIR}/vpngate_manager.py
 Restart=always
 RestartSec=5
+Environment=PYTHONPATH=${INSTALL_DIR}
 EnvironmentFile=-/etc/default/aimilivpn
 
 [Install]
