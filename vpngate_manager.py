@@ -3122,8 +3122,6 @@ INDEX_HTML = r"""<!doctype html>
     </div>
 
     <div id="page_nodes" class="page-content" style="display:none;">
-    <section class="active-node-section" id="active_node_card_placeholder" style="display:none;"></section>
-    </div>
 
   <section class="toolbar">
     <select id="status_filter">
@@ -3213,6 +3211,8 @@ INDEX_HTML = r"""<!doctype html>
       </div>
     </div>
   </div> <!-- end table-wrapper -->
+
+  </div> <!-- end page_nodes -->
 
   <!-- Credentials Modal (网页安全设置) -->
   <div id="credentials_modal" class="modal">
