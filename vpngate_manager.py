@@ -108,7 +108,7 @@ API_URL = "https://www.vpngate.net/api/iphone/"
 FETCH_INTERVAL_SECONDS = env_int("FETCH_INTERVAL_SECONDS", 1260, 1)
 CHECK_INTERVAL_SECONDS = env_int("CHECK_INTERVAL_SECONDS", 1260, 1)
 TARGET_VALID_NODES = env_int("TARGET_VALID_NODES", 3, 1)
-MAX_SCAN_ROWS = env_int("MAX_SCAN_ROWS", 100, 1)
+MAX_SCAN_ROWS = env_int("MAX_SCAN_ROWS", 300, 1)
 OPENVPN_TEST_TIMEOUT_SECONDS = env_int("OPENVPN_TEST_TIMEOUT_SECONDS", 35, 1)
 MANUAL_TEST_NODE_LIMIT = env_int("MANUAL_TEST_NODE_LIMIT", 5, 1, 20)
 INITIAL_CONNECT_TEST_LIMIT = env_int("INITIAL_CONNECT_TEST_LIMIT", 10, 1, 50)
@@ -972,7 +972,7 @@ def fetch_candidates() -> list[dict[str, Any]]:
     seen_ips = set()
     
     has_cache = len(cached_nodes()) > 0
-    max_attempts = 1
+    max_attempts = 2
     
     attempts_targets = [
         (API_URL, True),
