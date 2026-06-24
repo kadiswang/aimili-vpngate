@@ -1112,11 +1112,21 @@ fi
 echo -e "\n正在等待 AimiliVPN 首次获取节点并建立加密通道 (此过程可能需要 5-30 秒)..."
 ACTIVE_ID=""
 LAST_MSG=""
-for i in {1..90}; do
+for i in {1..45}; do
     if [ -f "${INSTALL_DIR}/vpngate_data/state.json" ]; then
-        ACTIVE_ID=$(python3 -c "import json; print(json.load(open('${INSTALL_DIR}/vpngate_data/state.json')).get('active_openvpn_node_id', ''))" 2>/dev/null || echo "")
-        IS_CONN=$(python3 -c "import json; print(json.load(open('${INSTALL_DIR}/vpngate_data/state.json')).get('is_connecting', False))" 2>/dev/null || echo "False")
-        CUR_MSG=$(python3 -c "import json; print(json.load(open('${INSTALL_DIR}/vpngate_data/state.json')).get('last_check_message', ''))" 2>/dev/null || echo "")
+        # Single Python invocation reads all state fields at once, avoiding 3x process launches
+        STATE_LINES=$(python3 -c "
+import json
+try:
+    d = json.load(open('${INSTALL_DIR}/vpngate_data/state.json'))
+    print(d.get('active_openvpn_node_id', ''))
+    print(d.get('is_connecting', False))
+    print(d.get('last_check_message', ''))
+except: pass
+" 2>/dev/null)
+        ACTIVE_ID=$(echo "$STATE_LINES" | sed -n '1p')
+        IS_CONN=$(echo "$STATE_LINES" | sed -n '2p')
+        CUR_MSG=$(echo "$STATE_LINES" | sed -n '3p')
         
         if [ "$IS_CONN" = "False" ] || [ "$IS_CONN" = "false" ]; then
             if [ -n "$ACTIVE_ID" ]; then
@@ -1137,7 +1147,7 @@ for i in {1..90}; do
     else
         echo -n "."
     fi
-    sleep 1
+    sleep 2
 done
 if [ -z "$ACTIVE_ID" ]; then
     echo -e "  -> ${YELLOW}[加载超时]${PLAIN} 首次节点获取或连接超时，将在后台继续尝试..."
@@ -1150,11 +1160,19 @@ UI_PORT=8787
 PROXY_PORT=7928
 AUTH_FILE="${INSTALL_DIR}/vpngate_data/ui_auth.json"
 if [ -f "$AUTH_FILE" ]; then
-    SECRET_PATH=$(python3 -c "import json; print(json.load(open('$AUTH_FILE')).get('secret_path', 'EJsW2EeBo9lY'))" 2>/dev/null || echo "EJsW2EeBo9lY")
-    USERNAME=$(python3 -c "import json; print(json.load(open('$AUTH_FILE')).get('username', '未配置'))" 2>/dev/null || echo "未配置")
-    PASSWORD=$(python3 -c "import json; print(json.load(open('$AUTH_FILE')).get('password', '未配置'))" 2>/dev/null || echo "未配置")
-    UI_PORT=$(python3 -c "import json; print(json.load(open('$AUTH_FILE')).get('port', 8787))" 2>/dev/null || echo "8787")
-    PROXY_PORT=$(python3 -c "import json; print(json.load(open('$AUTH_FILE')).get('proxy_port', 7928))" 2>/dev/null || echo "7928")
+    AUTH_LINES=$(python3 -c "
+import json
+try:
+    d = json.load(open('${AUTH_FILE}'))
+    for k in ('secret_path', 'username', 'password', 'port', 'proxy_port'):
+        print(d.get(k, ''))
+except: print('\n\n\n\n')
+" 2>/dev/null)
+    SECRET_PATH=$(echo "$AUTH_LINES" | sed -n '1p'); [ -z "$SECRET_PATH" ] && SECRET_PATH="EJsW2EeBo9lY"
+    USERNAME=$(echo "$AUTH_LINES" | sed -n '2p'); [ -z "$USERNAME" ] && USERNAME="未配置"
+    PASSWORD=$(echo "$AUTH_LINES" | sed -n '3p'); [ -z "$PASSWORD" ] && PASSWORD="未配置"
+    UI_PORT=$(echo "$AUTH_LINES" | sed -n '4p'); [ -z "$UI_PORT" ] && UI_PORT="8787"
+    PROXY_PORT=$(echo "$AUTH_LINES" | sed -n '5p'); [ -z "$PROXY_PORT" ] && PROXY_PORT="7928"
 fi
 
 # Get VPS public IP
