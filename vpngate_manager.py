@@ -3670,11 +3670,29 @@ let countryDict = {};
 let csrfToken = "";
 
 async function fetchWithCsrf(url, options = {}) {
-  if (options.headers && typeof options.headers === "object") {
-    options.headers = { ...options.headers };
-    if (csrfToken) {
-      options.headers["X-CSRF-Token"] = csrfToken;
-    }
+  if (!options.method || options.method === "GET") {
+    options.method = options.method || "GET";
+  }
+  // Ensure headers object exists
+  if (!options.headers || typeof options.headers !== "object") {
+    options.headers = {};
+  }
+  options.headers = { ...options.headers };
+  options.credentials = options.credentials || "same-origin";
+  // Auto-fetch CSRF token if missing for write operations
+  if (!csrfToken && (!options.method || options.method !== "GET")) {
+    try {
+      const csrfResp = await fetch("./api/csrf_token", { credentials: "same-origin" });
+      if (csrfResp.ok) {
+        const csrfData = await csrfResp.json();
+        if (csrfData.csrf_token) {
+          csrfToken = csrfData.csrf_token;
+        }
+      }
+    } catch(e) {}
+  }
+  if (csrfToken) {
+    options.headers["X-CSRF-Token"] = csrfToken;
   }
   const resp = await fetch(url, options);
   if (resp.ok) {
@@ -3688,7 +3706,12 @@ async function fetchWithCsrf(url, options = {}) {
       return {};
     }
   }
-  throw new Error(resp.statusText);
+  let errMsg = resp.statusText;
+  try {
+    const errBody = await resp.clone().json();
+    errMsg = errBody.error || resp.statusText;
+  } catch(e) {}
+  throw new Error(errMsg);
 }
 
 const $=id=>document.getElementById(id);
@@ -4432,7 +4455,7 @@ async function toggleFavRouting() {
       load();
     }
   } catch (err) {
-    alert("连接服务器失败，请稍后重试");
+    alert("连接服务器失败: " + (err.message || "请稍后重试"));
     load();
   }
 }
@@ -4465,7 +4488,7 @@ async function handleFavFallbackChange(checked) {
       load();
     }
   } catch (err) {
-    alert("连接服务器失败，请稍后重试");
+    alert("连接服务器失败: " + (err.message || "请稍后重试"));
     load();
   }
 }
@@ -4676,58 +4699,11 @@ async function saveCredentials(e) {
       submitBtn.textContent = "保存修改";
     }
   } catch (err) {
-    errorDivEl.textContent = "连接服务器失败，请稍后重试";
+    errorDivEl.textContent = err.message || "连接服务器失败，请稍后重试";
     errorDivEl.style.display = "block";
     submitBtn.disabled = false;
     submitBtn.textContent = "保存修改";
   }
-}
-
-function openNetworkModal() {
-  $("network_error").style.display = "none";
-  $("network_success").style.display = "none";
-  $("network_form").reset();
-  
-  if (state) {
-    $("net_proxy_port").value = state.proxy_port || 7928;
-    const mode = state.routing_mode || "auto";
-    const ipType = state.routing_ip_type || "all";
-    
-    selectOptionCard('routing_mode', mode);
-    selectOptionCard('routing_ip_type', ipType);
-    
-    const up = state.upstream_proxy || {};
-    if (up.enabled && up.host && up.port) {
-      $("net_upstream_enabled").checked = true;
-      $("upstream_proxy_fields").style.display = "block";
-      $("net_upstream_host").value = up.host || "";
-      $("net_upstream_port").value = up.port || "";
-      $("net_upstream_user").value = up.user || "";
-      $("net_upstream_pass").value = up.pass || "";
-      const utype = up.type || "socks";
-      $("net_upstream_type").value = utype;
-      selectOptionCard('upstream_type', utype);
-    } else {
-      $("net_upstream_enabled").checked = false;
-      $("upstream_proxy_fields").style.display = "none";
-    }
-  }
-  
-  populateRoutingCountries();
-  $("network_modal").style.display = "flex";
-}
-
-function closeNetworkModal() {
-  $("network_modal").style.display = "none";
-}
-
-function toggleUpstreamFields() {
-  var enabled = $("net_upstream_enabled").checked;
-  $("upstream_proxy_fields").style.display = enabled ? "block" : "none";
-}
-
-function setUpstreamType(val) {
-  selectOptionCard('upstream_type', val);
 }
 
 async function saveNetwork(e) {
@@ -4831,13 +4807,12 @@ async function saveNetwork(e) {
       submitBtn.textContent = "保存修改";
     }
   } catch (err) {
-    errorDivEl.textContent = "连接服务器失败，请稍后重试";
+    errorDivEl.textContent = err.message || "连接服务器失败，请稍后重试";
     errorDivEl.style.display = "block";
     submitBtn.disabled = false;
     submitBtn.textContent = "保存修改";
   }
 }
-
 
 
 async function logoutAdmin() {
