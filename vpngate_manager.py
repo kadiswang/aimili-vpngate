@@ -181,7 +181,7 @@ def _cached_load_ui_config() -> dict[str, Any]:
     now = time.time()
     if _config_cache is not None and now - _config_cache_time < CONFIG_CACHE_TTL:
         return _config_cache
-    result = _raw_load_ui_config()
+    result = load_ui_config()
     with lock:
         _config_cache = result
         _config_cache_time = now
@@ -190,6 +190,7 @@ def _cached_load_ui_config() -> dict[str, Any]:
 
 _config_cache: dict[str, Any] | None = None
 _config_cache_time = 0.0
+_last_cleanup_time = 0.0
 
 
 def load_ui_config() -> dict[str, Any]:
