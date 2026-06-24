@@ -4614,6 +4614,41 @@ function closeCredentialsModal() {
   $("credentials_modal").style.display = "none";
 }
 
+function openNetworkModal() {
+  $("network_error").style.display = "none";
+  $("network_success").style.display = "none";
+  $("network_form").reset();
+  if (state) {
+    $("net_proxy_port").value = state.proxy_port || 7928;
+    $("net_routing_mode").value = state.routing_mode || "auto";
+    $("net_force_country").value = state.force_country || "";
+    $("net_routing_ip_type").value = state.routing_ip_type || "all";
+    
+    const up = state.upstream_proxy || {};
+    $("net_upstream_enabled").checked = !!up.enabled;
+    if (up.enabled) {
+      $("net_upstream_type").value = up.type || "socks";
+      setUpstreamType(up.type || "socks");
+      $("net_upstream_host").value = up.host || "";
+      $("net_upstream_port").value = up.port || 0;
+      $("net_upstream_user").value = up.user || "";
+      $("net_upstream_pass").value = up.pass || "";
+    }
+    handleRoutingModeChange(state.routing_mode || "auto");
+    setRoutingIpType(state.routing_ip_type || "all");
+  }
+  $("network_modal").style.display = "flex";
+}
+
+function closeNetworkModal() {
+  $("network_modal").style.display = "none";
+}
+
+function toggleUpstreamFields() {
+  const enabled = $("net_upstream_enabled").checked;
+  $("upstream_proxy_fields").style.display = enabled ? "block" : "none";
+}
+
 async function saveCredentials(e) {
   e.preventDefault();
   const errorDivEl = $("credentials_error");
