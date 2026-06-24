@@ -108,7 +108,7 @@ API_URL = "https://www.vpngate.net/api/iphone/"
 FETCH_INTERVAL_SECONDS = env_int("FETCH_INTERVAL_SECONDS", 1260, 1)
 CHECK_INTERVAL_SECONDS = env_int("CHECK_INTERVAL_SECONDS", 1260, 1)
 TARGET_VALID_NODES = env_int("TARGET_VALID_NODES", 3, 1)
-MAX_SCAN_ROWS = env_int("MAX_SCAN_ROWS", 100, 1)
+MAX_SCAN_ROWS = env_int("MAX_SCAN_ROWS", 300, 1)
 OPENVPN_TEST_TIMEOUT_SECONDS = env_int("OPENVPN_TEST_TIMEOUT_SECONDS", 35, 1)
 MANUAL_TEST_NODE_LIMIT = env_int("MANUAL_TEST_NODE_LIMIT", 5, 1, 20)
 INITIAL_CONNECT_TEST_LIMIT = env_int("INITIAL_CONNECT_TEST_LIMIT", 10, 1, 50)
@@ -976,7 +976,7 @@ def fetch_candidates() -> list[dict[str, Any]]:
     seen_ips = set()
     
     has_cache = len(cached_nodes()) > 0
-    max_attempts = 1
+    max_attempts = 1 if has_cache else 3
     
     attempts_targets = [
         (API_URL, True),
@@ -1700,7 +1700,7 @@ def test_multiple_nodes(node_ids: list[str]) -> list[dict[str, Any]]:
         return temp_node
 
     updated_nodes_map = {}
-    max_workers = min(3, max(1, len(to_test)))
+    max_workers = min(5, max(1, len(to_test)))
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(test_worker, (idx, n)): n["id"] for idx, n in enumerate(to_test)}
         for future in concurrent.futures.as_completed(futures):
@@ -2023,14 +2023,10 @@ def maintain_valid_nodes(force: bool = False) -> str:
                         
             write_json(NODES_FILE, merged)
 
-        # Test non-active nodes from the list (limit batch size to avoid CPU overload)
+        # Test all non-active nodes from the list
         with lock:
             current_nodes = read_nodes()
             to_test = [n for n in current_nodes if not n.get("active")]
-            # Sort by priority: untested first, then by score
-            to_test.sort(key=lambda n: (0 if n.get("probe_status") in ("not_checked", "testing") else 1, -parse_int(n.get("score"))))
-            # Limit initial batch to 30 nodes to avoid CPU overload on startup
-            to_test = to_test[:30]
             to_test_ids = [n["id"] for n in to_test]
             
         msg = f"开始对候选节点进行周期连通性与延迟测试，本批次检测节点共 {len(to_test_ids)} 个"
@@ -2116,8 +2112,6 @@ def maintain_valid_nodes(force: bool = False) -> str:
 
 def collector_loop() -> None:
     global last_collector_heartbeat
-    # Initial cooldown to let the system stabilize
-    time.sleep(10)
     while True:
         last_collector_heartbeat = time.time()
         success = False
