@@ -6003,7 +6003,7 @@ def main() -> None:
             "active_openvpn_node_id": "",
             "last_fetch_status": "starting",
             "last_check_message": "服务已启动，正在初始化网络并获取候选 VPN 节点...",
-            "is_connecting": True,
+            "is_connecting": False,
             "active_node_latency": "正在准备",
             "blacklisted_nodes": 0,
         },
