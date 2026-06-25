@@ -329,69 +329,6 @@ def generate_random_username() -> str:
             if has_lower and has_upper and has_digit:
                 return uname
 
-def load_ui_config() -> dict[str, Any]:
-    with lock:
-        auth_file = DATA_DIR / "ui_auth.json"
-        config = {
-            "username": "",
-            "secret_path": "EJsW2EeBo9lY",
-            "password": "",
-            "host": UI_HOST,
-            "port": UI_PORT,
-            "proxy_port": LOCAL_PROXY_PORT,
-            "routing_mode": "auto",
-            "force_country": "",
-            "routing_ip_type": "all",
-            "connection_enabled": True,
-            "fixed_node_id": "",
-            "favorite_node_ids": [],
-            "fav_fail_fallback": True,
-            "upstream_proxy": { "enabled": False }
-        }
-        updated = False
-        if auth_file.exists():
-            try:
-                data = json.loads(auth_file.read_text(encoding="utf-8"))
-                for key, val in data.items():
-                    config[key] = val
-                for key in ["host", "port", "proxy_port", "routing_mode", "force_country", "routing_ip_type", "connection_enabled", "fixed_node_id", "favorite_node_ids", "fav_fail_fallback", "upstream_proxy"]:
-                    if key not in data:
-                        updated = True
-            except Exception:
-                pass
-        
-        if not config.get("username"):
-            config["username"] = generate_random_username()
-            updated = True
-            
-        if not config.get("password"):
-            config["password"] = generate_random_password()
-            updated = True
-
-        normalized_port = bounded_int(config.get("port"), UI_PORT, 1, 65535)
-        if normalized_port != config.get("port"):
-            config["port"] = normalized_port
-            updated = True
-
-        normalized_proxy_port = bounded_int(config.get("proxy_port"), LOCAL_PROXY_PORT, 1024, 65535)
-        if normalized_proxy_port == normalized_port:
-            fallback_proxy_port = LOCAL_PROXY_PORT if LOCAL_PROXY_PORT != normalized_port else 7928
-            if fallback_proxy_port == normalized_port:
-                fallback_proxy_port = 7929
-            normalized_proxy_port = fallback_proxy_port
-        if normalized_proxy_port != config.get("proxy_port"):
-            config["proxy_port"] = normalized_proxy_port
-            updated = True
-            
-        if not auth_file.exists() or updated:
-            try:
-                DATA_DIR.mkdir(exist_ok=True, parents=True)
-                write_json(auth_file, config)
-            except Exception:
-                pass
-                
-        return config
-
 # 初始化时优先从 ui_auth.json 加载保存的代理出站端口和网页端口配置以覆盖环境变量
 try:
     _init_cfg = _cached_load_ui_config()
@@ -1761,29 +1698,7 @@ def auto_switch_node(attempt: int = 0) -> None:
             if n.get("probe_status") == "available" 
             and not n.get("active")
         ]
-        
-        if routing_mode == "fixed_region" and target_country:
-            candidates = [
-                n for n in candidates 
-                if n.get("country") == target_country 
-                or vpn_utils.COUNTRY_TRANSLATIONS.get(n.get("country", ""), n.get("country", "")) == target_country
-            ]
-        if routing_mode == "favorites":
-            fav_ids = set(ui_cfg.get("favorite_node_ids", []))
-            fav_candidates = [n for n in candidates if n.get("id") in fav_ids]
-            if fav_candidates:
-                candidates = fav_candidates
-            else:
-                fav_fail_fallback = ui_cfg.get("fav_fail_fallback", True)
-                if not fav_fail_fallback:
-                    candidates = []
-            
-        # Apply routing_ip_type filter
-        routing_ip_type = ui_cfg.get("routing_ip_type", "all")
-        if routing_ip_type == "residential":
-            candidates = [n for n in candidates if n.get("ip_type") in ("residential", "mobile")]
-        elif routing_ip_type == "hosting":
-            candidates = [n for n in candidates if n.get("ip_type") == "hosting"]
+        candidates = apply_routing_filters(candidates, ui_cfg)
             
         candidates.sort(key=lambda n: (parse_int(n.get("latency_ms")) or 999999, -parse_int(n.get("score"))))
         
@@ -1953,13 +1868,20 @@ def maintain_valid_nodes(force: bool = False) -> str:
         msg = "节点维护任务正在运行，请稍后再试"
         set_state(last_check_message=msg)
         return msg
-    is_connecting = True
+    with lock:
+        if is_connecting:
+            maintenance_lock.release()
+            msg = "当前已有连接或节点测试任务正在运行，请稍后再试"
+            set_state(last_check_message=msg)
+            return msg
+        is_connecting = True
     try:
         if force:
             with lock:
                 stop_active_openvpn()
+            reconnect_fixed_node_if_needed(load_ui_config())
         elif not active_openvpn_running():
-            ui_cfg = _cached_load_ui_config()
+            ui_cfg = load_ui_config()
             routing_mode = ui_cfg.get("routing_mode", "auto")
             connection_enabled = ui_cfg.get("connection_enabled", True)
             if connection_enabled:
@@ -1993,9 +1915,14 @@ def maintain_valid_nodes(force: bool = False) -> str:
             return "没有拉取到新节点"
 
         with lock:
+            current_nodes = read_nodes()
+            current_by_id = {
+                str(n.get("id")): n
+                for n in current_nodes
+                if n.get("id")
+            }
             active_node = None
             if active_openvpn_node_id:
-                current_nodes = read_nodes()
                 active_node = next((n for n in current_nodes if n.get("id") == active_openvpn_node_id), None)
                 
             merged: list[dict[str, Any]] = []
@@ -2007,6 +1934,22 @@ def maintain_valid_nodes(force: bool = False) -> str:
                 
             for cand in candidates:
                 if cand["id"] not in seen_ids:
+                    previous = current_by_id.get(str(cand["id"]))
+                    if previous:
+                        for key in [
+                            "probe_status",
+                            "probe_message",
+                            "latency_ms",
+                            "probed_at",
+                            "owner",
+                            "asn",
+                            "as_name",
+                            "location",
+                            "ip_type",
+                            "quality",
+                        ]:
+                            if previous.get(key) not in (None, ""):
+                                cand[key] = previous.get(key)
                     merged.append(cand)
                     seen_ids.add(cand["id"])
                     
@@ -2023,13 +1966,69 @@ def maintain_valid_nodes(force: bool = False) -> str:
                         
             write_json(NODES_FILE, merged)
 
-        # Test all non-active nodes from the list
+        initial_tested_ids: set[str] = set()
+        ui_cfg = load_ui_config()
+        should_fast_connect = (
+            ui_cfg.get("connection_enabled", True)
+            and ui_cfg.get("routing_mode", "auto") != "fixed_ip"
+            and not active_openvpn_running()
+        )
+        if should_fast_connect:
+            with lock:
+                current_nodes = read_nodes()
+                fast_candidates = [
+                    n for n in current_nodes
+                    if not n.get("active") and n.get("probe_status") != "unavailable"
+                ]
+                fast_candidates = apply_routing_filters(fast_candidates, ui_cfg, include_unknown_ip_type=True)
+                fast_candidates.sort(key=probe_priority_key)
+                fast_test_ids = [
+                    n["id"] for n in fast_candidates
+                    if n.get("id")
+                ][:INITIAL_CONNECT_TEST_LIMIT]
+
+            if fast_test_ids:
+                initial_tested_ids = set(fast_test_ids)
+                msg = f"首次快速连接模式：优先测试 {len(fast_test_ids)} 个高优先级节点，发现可用节点后立即连接"
+                print(f"[快速首连] {msg}", flush=True)
+                log_to_json("INFO", "Main", msg)
+                set_state(is_connecting=True, last_check_message=msg)
+                test_multiple_nodes(fast_test_ids)
+
+                with lock:
+                    fast_nodes = read_nodes()
+                    available_candidates = [
+                        n for n in fast_nodes
+                        if n.get("probe_status") == "available" and not n.get("active")
+                    ]
+                    available_candidates = apply_routing_filters(available_candidates, ui_cfg)
+
+                if available_candidates:
+                    is_connecting = False
+                    set_state(is_connecting=False, last_check_message="快速首连已找到可用节点，正在建立连接...")
+                    auto_switch_node()
+                    if active_openvpn_running():
+                        valid_nodes_count = len([n for n in read_nodes() if n.get("probe_status") == "available"])
+                        message = f"Fetched {len(candidates)} nodes. Fast-tested {len(fast_test_ids)} nodes and connected."
+                        set_state(
+                            last_check_at=time.time(),
+                            last_check_message=message,
+                            active_openvpn_node_id=active_openvpn_node_id,
+                            valid_nodes=valid_nodes_count,
+                        )
+                        return message
+                    is_connecting = True
+
+        # Test remaining non-active nodes from the list
         with lock:
             current_nodes = read_nodes()
-            to_test = [n for n in current_nodes if not n.get("active")]
+            to_test = [
+                n for n in current_nodes
+                if not n.get("active") and n.get("id") not in initial_tested_ids
+            ]
             to_test_ids = [n["id"] for n in to_test]
             
-        msg = f"开始对候选节点进行周期连通性与延迟测试，本批次检测节点共 {len(to_test_ids)} 个"
+        msg = f"开始对列表中所有候选节点进行周期连通性与延迟测试，待检测节点共 {len(to_test_ids)} 个"
         print(f"[周期检测] {msg}", flush=True)
         log_to_json("INFO", "Main", msg)
         
@@ -2060,36 +2059,14 @@ def maintain_valid_nodes(force: bool = False) -> str:
                 log_to_json("WARNING", "Main", warn_msg)
             
             if not active_openvpn_running():
-                ui_cfg = _cached_load_ui_config()
+                ui_cfg = load_ui_config()
                 connection_enabled = ui_cfg.get("connection_enabled", True)
                 if connection_enabled:
                     routing_mode = ui_cfg.get("routing_mode", "auto")
-                    target_country = ui_cfg.get("force_country", "")
                     
                     if routing_mode != "fixed_ip":
                         available_candidates = [n for n in merged if n.get("probe_status") == "available"]
-                        if routing_mode == "fixed_region" and target_country:
-                            available_candidates = [
-                                n for n in available_candidates 
-                                if n.get("country") == target_country 
-                                or vpn_utils.COUNTRY_TRANSLATIONS.get(n.get("country", ""), n.get("country", "")) == target_country
-                            ]
-                        elif routing_mode == "favorites":
-                            fav_ids = set(ui_cfg.get("favorite_node_ids", []))
-                            fav_candidates = [n for n in available_candidates if n.get("id") in fav_ids]
-                            if fav_candidates:
-                                available_candidates = fav_candidates
-                            else:
-                                fav_fail_fallback = ui_cfg.get("fav_fail_fallback", True)
-                                if not fav_fail_fallback:
-                                    available_candidates = []
-                        
-                        # Apply routing_ip_type filter for auto-connect
-                        routing_ip_type = ui_cfg.get("routing_ip_type", "all")
-                        if routing_ip_type == "residential":
-                            available_candidates = [n for n in available_candidates if n.get("ip_type") in ("residential", "mobile")]
-                        elif routing_ip_type == "hosting":
-                            available_candidates = [n for n in available_candidates if n.get("ip_type") == "hosting"]
+                        available_candidates = apply_routing_filters(available_candidates, ui_cfg)
                         
                         if available_candidates:
                             auto_switch_node()
