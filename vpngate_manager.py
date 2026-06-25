@@ -4120,7 +4120,7 @@ async function testNode(btn, id, event){
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id })
     });
-    const result = await response.json();
+    const result = response;
     if (result.ok && result.node) {
       const idx = nodes.findIndex(n => n && n.id === id);
       if (idx !== -1) {
@@ -4142,7 +4142,7 @@ async function toggleFavorite(id, event) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id })
     });
-    const result = await response.json();
+    const result = response;
     if (result.ok) {
       state.favorite_node_ids = Array.isArray(result.favorite_node_ids) ? result.favorite_node_ids : [];
       render();
@@ -4196,7 +4196,7 @@ async function connectNode(id){
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({id})
     });
-    const result = await r.json();
+    const result = r;
     if (!result.ok) {
       alert("连接失败: " + (result.error || "未知错误"));
       if (pollInterval) {
@@ -4222,7 +4222,7 @@ async function disconnectNode(){
   if (!confirm("确定要断开当前的 VPN 连接吗？")) return;
   try {
     const response = await fetchWithCsrf("./api/disconnect", { method: "POST" });
-    const result = await response.json();
+    const result = response;
     if (result.ok) {
       try {
         await fetchWithCsrf("./api/test_proxy", { method: "POST" });
@@ -4348,7 +4348,7 @@ $("btn_test_proxy").onclick = async () => {
   
   try {
     const response = await fetchWithCsrf("./api/test_proxy", { method: "POST" });
-    const result = await response.json();
+    const result = response;
     if (result.ok) {
       badge.className = "badge available";
       badge.textContent = "可用";
