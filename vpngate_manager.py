@@ -1753,7 +1753,7 @@ def auto_switch_node(attempt: int = 0) -> None:
         print("[自动切换] 当前处于固定 IP 模式，不进行自动连接或切换。", flush=True)
         return
 
-    # Find the next best available node (all modes use auto-testing, routing_mode only affects initial connect)
+    # Find the next best available node
     with lock:
         nodes = read_nodes()
         candidates = [
@@ -1761,6 +1761,29 @@ def auto_switch_node(attempt: int = 0) -> None:
             if n.get("probe_status") == "available" 
             and not n.get("active")
         ]
+        
+        if routing_mode == "fixed_region" and target_country:
+            candidates = [
+                n for n in candidates 
+                if n.get("country") == target_country 
+                or vpn_utils.COUNTRY_TRANSLATIONS.get(n.get("country", ""), n.get("country", "")) == target_country
+            ]
+        if routing_mode == "favorites":
+            fav_ids = set(ui_cfg.get("favorite_node_ids", []))
+            fav_candidates = [n for n in candidates if n.get("id") in fav_ids]
+            if fav_candidates:
+                candidates = fav_candidates
+            else:
+                fav_fail_fallback = ui_cfg.get("fav_fail_fallback", True)
+                if not fav_fail_fallback:
+                    candidates = []
+            
+        # Apply routing_ip_type filter
+        routing_ip_type = ui_cfg.get("routing_ip_type", "all")
+        if routing_ip_type == "residential":
+            candidates = [n for n in candidates if n.get("ip_type") in ("residential", "mobile")]
+        elif routing_ip_type == "hosting":
+            candidates = [n for n in candidates if n.get("ip_type") == "hosting"]
             
         candidates.sort(key=lambda n: (parse_int(n.get("latency_ms")) or 999999, -parse_int(n.get("score"))))
         
