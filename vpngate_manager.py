@@ -4271,7 +4271,7 @@ function toggleSidebarTheme() {
 
 async function load(){
   const r=await fetchWithCsrf("./api/nodes"); 
-  const d=await r.json(); 
+  const d=r;
   nodes=Array.isArray(d.nodes) ? d.nodes : []; 
   console.log("[load] nodes count:", nodes.length, "first node:", nodes[0] ? nodes[0].id : "none");
   state=d.state||{}; 
