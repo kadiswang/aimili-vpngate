@@ -1897,7 +1897,7 @@ def maintain_valid_nodes(force: bool = False) -> str:
                         print("[维护线程] 检测到当前 OpenVPN 进程已意外退出，准备自动切换节点", flush=True)
                         is_connecting = False
                         auto_switch_node()
-is_connecting = False
+                        is_connecting = True
 
         try:
             set_state(is_connecting=True, last_check_message="正在拉取最新的免费 VPN 节点列表...")
