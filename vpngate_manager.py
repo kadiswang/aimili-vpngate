@@ -153,7 +153,7 @@ active_ws_clients: list = []
 ws_clients_lock = threading.Lock()
 active_openvpn_process: subprocess.Popen[str] | None = None
 active_openvpn_node_id = ""
-is_connecting = True
+is_connecting = False
 last_active_ping_time = 0.0
 last_active_latency = 0
 
@@ -1677,7 +1677,7 @@ def auto_switch_node(attempt: int = 0) -> None:
         print("[自动切换] 连续切换失败已达 3 次，停止切换以防止主线程死锁，将在后台重新加载节点...", flush=True)
         return
         
-    ui_cfg = _cached_load_ui_config()
+    ui_cfg = load_ui_config()
     connection_enabled = ui_cfg.get("connection_enabled", True)
     if not connection_enabled:
         print("[自动切换] 连接已禁用，不进行自动切换。", flush=True)
@@ -1730,8 +1730,10 @@ def auto_switch_node(attempt: int = 0) -> None:
         
         def bg_fetch_and_switch():
             try:
+                # 避免所有节点不可用时连续拉取/测试导致 CPU 与 tun 网卡风暴。
+                time.sleep(60)
                 maintain_valid_nodes(force=False)
-                auto_switch_node()
+                auto_switch_node(attempt + 1)
             except Exception as e:
                 print(f"[自动切换后台补齐] 获取并测试节点失败: {e}", flush=True)
         
@@ -1758,7 +1760,7 @@ def connect_node(node_id: str) -> str:
         if not node:
             raise ValueError(f"Node not found: {node_id}")
         
-        ui_cfg = _cached_load_ui_config()
+        ui_cfg = load_ui_config()
         validate_node_allowed_by_routing(node, ui_cfg)
         ui_cfg["connection_enabled"] = True
         if ui_cfg.get("routing_mode") == "fixed_ip":
@@ -1766,7 +1768,7 @@ def connect_node(node_id: str) -> str:
         auth_file = DATA_DIR / "ui_auth.json"
         with lock:
             DATA_DIR.mkdir(exist_ok=True, parents=True)
-            auth_file.write_text(json.dumps(ui_cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+            write_json(auth_file, ui_cfg)
         
         set_state(active_node_latency="清理连接", last_check_message="正在关闭与清理旧的 VPN 连接及网卡...")
         stop_active_openvpn()
@@ -1848,7 +1850,6 @@ def connect_node(node_id: str) -> str:
             
         latency_str = f"{last_active_latency} ms" if last_active_latency > 0 else "检测超时"
         set_state(active_openvpn_node_id=node_id, is_connecting=False, last_check_message=f"Connected {node_id}", active_node_latency=latency_str)
-        broadcast_event("node_connected", {"node_id": node_id})
         log_to_json("INFO", "VPN", f"节点 {node_id} 连接成功，出口网卡 tun0 已启用")
         return f"Connected {node_id}"
     except Exception as exc:
