@@ -3212,6 +3212,56 @@ INDEX_HTML = r"""<!doctype html>
     [data-theme="dark"] .modal-content .option-card-desc {
       color: #cbd5e1 !important;
     }
+    
+    /* 所有弹窗暗黑模式通用覆盖 */
+    [data-theme="dark"] .modal-content {
+      background: rgba(17,24,39,0.95);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    [data-theme="dark"] .modal {
+      background: rgba(0,0,0,0.6);
+    }
+    [data-theme="dark"] .modal-content button[onmouseover],
+    [data-theme="dark"] .modal-content button[onmouseout] {
+      color: var(--text-secondary) !important;
+    }
+    [data-theme="dark"] .modal-content button[onmouseover]:hover {
+      background: rgba(255,255,255,0.08) !important;
+      color: #60a5fa !important;
+    }
+    [data-theme="dark"] .modal-content .form-label {
+      color: var(--text-primary) !important;
+    }
+    [data-theme="dark"] .modal-content .input-field {
+      background: var(--bg) !important;
+      border-color: var(--border) !important;
+      color: var(--text) !important;
+    }
+    [data-theme="dark"] .modal-content select {
+      background: var(--bg) !important;
+      border-color: var(--border) !important;
+      color: var(--text) !important;
+    }
+    [data-theme="dark"] .modal-content .btn-ghost,
+    [data-theme="dark"] .modal-content button[style*="background: transparent"] {
+      color: var(--text-secondary) !important;
+      border-color: var(--border) !important;
+    }
+    [data-theme="dark"] .modal-content .btn-ghost:hover,
+    [data-theme="dark"] .modal-content button[style*="background: transparent"]:hover {
+      background: rgba(255,255,255,0.06) !important;
+      color: var(--text) !important;
+    }
+    [data-theme="dark"] .modal-content .btn-primary {
+      background: var(--primary) !important;
+      color: #fff !important;
+    }
+    [data-theme="dark"] #log_terminal_container {
+      background: #05080f !important;
+      border-color: var(--border) !important;
+      color: #a5b4fc !important;
+      box-shadow: inset 0 4px 20px rgba(0,0,0,0.8) !important;
+    }
     .input-field { width: 100%; height: 40px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 0 12px; color: var(--text); font-family: inherit; font-size: 14px; outline: none; }
     .input-field:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
     .vps-links { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
