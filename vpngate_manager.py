@@ -2715,7 +2715,7 @@ INDEX_HTML = r"""<!doctype html>
 
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: transparent;
+      background: var(--bg);
       color: var(--text);
       min-height: 100vh;
       -webkit-font-smoothing: antialiased;
