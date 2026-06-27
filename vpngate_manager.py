@@ -2121,57 +2121,17 @@ LOGIN_HTML = r"""<!DOCTYPE html>
   <title>AimiliVPN - 安全登录</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
-    :root {
-      --bg: #e6e8ec;
-      --surface: #ffffff;
-      --surface-2: #f8fafc;
-      --border: #e2e8f0;
-      --border-light: #cbd5e1;
-      --border-color: #e2e8f0;
-      --text: #1e293b;
-      --text-primary: #1e293b;
-      --text-secondary: #64748b;
-      --text-muted: #94a3b8;
-      --primary: #6366f1;
-      --primary-hover: #4f46e5;
-      --success: #10b981;
-      --success-bg: rgba(16,185,129,0.08);
-      --danger: #ef4444;
-      --danger-bg: rgba(239,68,68,0.08);
-      --warning: #f59e0b;
-      --warning-bg: rgba(245,158,11,0.08);
-      --shadow-sm: 0 1px 3px rgba(0,0,0,0.04);
-      --shadow: 0 1px 4px rgba(0,0,0,0.06), 0 2px 12px rgba(0,0,0,0.04);
-    }
-
-    [data-theme="dark"] {
-      --bg: #0a0e17;
-      --surface: #111827;
-      --surface-2: #1a2236;
-      --border: #1e293b;
-      --border-light: #273548;
-      --border-color: #1e293b;
-      --text: #f1f5f9;
-      --text-primary: #f1f5f9;
-      --text-secondary: #94a3b8;
-      --text-muted: #64748b;
-      --success-bg: rgba(16,185,129,0.12);
-      --danger-bg: rgba(239,68,68,0.12);
-      --warning-bg: rgba(245,158,11,0.12);
-      --shadow-sm: none;
-      --shadow: none;
-    }
-
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       min-height: 100vh;
       overflow: hidden;
-      background: var(--bg);
+      background: linear-gradient(135deg, #eef2ff 0%, #fdf2f8 50%, #ecfeff 100%);
       position: relative;
+    }
+    [data-theme="dark"] body {
+      background: radial-gradient(ellipse at 25% 20%, #152038 0%, #0d1117 60%);
     }
 
     /* Blob decorations */
@@ -2183,16 +2143,16 @@ LOGIN_HTML = r"""<!DOCTYPE html>
       pointer-events: none;
       z-index: 0;
     }
-    [data-theme="dark"] .login-blob { opacity: 0.35; }
     .login-blob:nth-child(1) { width: 400px; height: 400px; background: rgba(99,102,241,0.35); top: -120px; left: -80px; animation: blobFloat1 12s ease-in-out infinite; }
-    [data-theme="dark"] .login-blob:nth-child(1) { background: rgba(99,102,241,0.25); }
     .login-blob:nth-child(2) { width: 320px; height: 320px; background: rgba(236,72,153,0.30); top: 60%; right: -60px; animation: blobFloat2 10s ease-in-out infinite; }
-    [data-theme="dark"] .login-blob:nth-child(2) { background: rgba(236,72,153,0.20); }
     .login-blob:nth-child(3) { width: 280px; height: 280px; background: rgba(20,184,166,0.25); bottom: -80px; left: 30%; animation: blobFloat3 14s ease-in-out infinite; }
-    [data-theme="dark"] .login-blob:nth-child(3) { background: rgba(20,184,166,0.18); }
     .login-blob:nth-child(4) { width: 200px; height: 200px; background: rgba(251,191,36,0.20); top: 30%; left: 15%; animation: blobFloat4 9s ease-in-out infinite; }
-    [data-theme="dark"] .login-blob:nth-child(4) { background: rgba(251,191,36,0.15); }
     .login-blob:nth-child(5) { width: 240px; height: 240px; background: rgba(56,189,248,0.25); top: 10%; right: 20%; animation: blobFloat5 11s ease-in-out infinite; }
+    [data-theme="dark"] .login-blob { opacity: 0.35; }
+    [data-theme="dark"] .login-blob:nth-child(1) { background: rgba(99,102,241,0.25); }
+    [data-theme="dark"] .login-blob:nth-child(2) { background: rgba(236,72,153,0.20); }
+    [data-theme="dark"] .login-blob:nth-child(3) { background: rgba(20,184,166,0.18); }
+    [data-theme="dark"] .login-blob:nth-child(4) { background: rgba(251,191,36,0.15); }
     [data-theme="dark"] .login-blob:nth-child(5) { background: rgba(56,189,248,0.18); }
 
     @keyframes blobFloat1 { 0%,100%{transform:translate(0,0)scale(1)} 33%{transform:translate(60px,-40px)scale(1.08)} 66%{transform:translate(-30px,20px)scale(0.95)} }
@@ -2226,14 +2186,19 @@ LOGIN_HTML = r"""<!DOCTYPE html>
       width: 40px; height: 40px; min-width: 40px;
       border-radius: 50%; padding: 0;
       display: flex; align-items: center; justify-content: center;
-      cursor: pointer; border: 1px solid var(--border);
-      background: var(--surface);
-      color: var(--text-secondary); font-size: 16px;
+      cursor: pointer; border: 1px solid rgba(255,255,255,0.6);
+      background: rgba(255,255,255,0.7);
+      backdrop-filter: blur(8px);
+      color: #64748b; font-size: 16px;
       transition: all .2s;
-      box-shadow: var(--shadow-sm);
     }
-    [data-theme="dark"] .login-toolbar button { background: rgba(255,255,255,0.08); color: #94a3b8; border-color: rgba(255,255,255,0.1); }
-    .login-toolbar button:hover { background: var(--surface-2); color: var(--primary); border-color: var(--border-light); }
+    [data-theme="dark"] .login-toolbar button {
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(255,255,255,0.1);
+      color: #94a3b8;
+    }
+    .login-toolbar button:hover { background: #fff; color: #6366f1; box-shadow: 0 2px 8px rgba(99,102,241,0.15); }
+    [data-theme="dark"] .login-toolbar button:hover { background: rgba(255,255,255,0.15); color: #60a5fa; }
 
     .login-card {
       position: relative;
@@ -2273,17 +2238,19 @@ LOGIN_HTML = r"""<!DOCTYPE html>
     }
     .brand-sub {
       font-size: 14px;
-      color: var(--text-muted);
+      color: #94a3b8;
       margin-top: 6px;
     }
+    [data-theme="dark"] .brand-sub { color: #64748b; }
 
     .welcome {
       text-align: center;
       font-size: 30px;
       font-weight: 700;
       margin-bottom: 28px;
-      color: var(--text);
+      color: #1e293b;
     }
+    [data-theme="dark"] .welcome { color: #f1f5f9; }
 
     .form-group {
       margin-bottom: 20px;
@@ -2292,9 +2259,10 @@ LOGIN_HTML = r"""<!DOCTYPE html>
       display: block;
       font-size: 13px;
       font-weight: 600;
-      color: var(--text-secondary);
+      color: #64748b;
       margin-bottom: 8px;
     }
+    [data-theme="dark"] label { color: #94a3b8; }
     .input-wrap {
       position: relative;
       display: flex;
@@ -2303,31 +2271,38 @@ LOGIN_HTML = r"""<!DOCTYPE html>
     .input-wrap .input-icon {
       position: absolute;
       left: 14px;
-      color: var(--text-muted);
+      color: #94a3b8;
       font-size: 15px;
       pointer-events: none;
     }
+    [data-theme="dark"] .input-wrap .input-icon { color: #64748b; }
     .input-wrap input {
       width: 100%;
       height: 46px;
       padding: 0 14px 0 42px;
-      background: var(--surface);
-      border: 1.5px solid var(--border);
+      background: #fff;
+      border: 1.5px solid #e2e8f0;
       border-radius: 10px;
-      color: var(--text);
+      color: #1e293b;
       font-family: inherit;
       font-size: 14px;
       outline: none;
       transition: border-color .2s, box-shadow .2s;
     }
+    [data-theme="dark"] .input-wrap input {
+      background: #1a1b1f;
+      border-color: #334155;
+      color: #f1f5f9;
+    }
     .input-wrap input:focus {
-      border-color: var(--primary);
+      border-color: #6366f1;
       box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
     }
-    .input-wrap input::placeholder { color: var(--text-muted); }
+    .input-wrap input::placeholder { color: #cbd5e1; }
+    [data-theme="dark"] .input-wrap input::placeholder { color: #475569; }
 
     .error-message {
-      color: var(--danger);
+      color: #ef4444;
       font-size: 13px;
       margin-top: 8px;
       display: none;
@@ -2543,6 +2518,72 @@ INDEX_HTML = r"""<!doctype html>
     [data-theme="dark"] .stat-icon { background: #1a2236; }
     [data-theme="dark"] .card { background: var(--bg); }
 
+    /* === 动态背景 Blob === */
+    .main-blob {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.5;
+      pointer-events: none;
+      z-index: 0;
+    }
+    [data-theme="dark"] .main-blob { opacity: 0.3; }
+    .main-blob:nth-child(1) { width: 400px; height: 400px; background: rgba(99,102,241,0.35); top: -120px; left: -80px; animation: blobFloat1 12s ease-in-out infinite; }
+    [data-theme="dark"] .main-blob:nth-child(1) { background: rgba(99,102,241,0.25); }
+    .main-blob:nth-child(2) { width: 320px; height: 320px; background: rgba(236,72,153,0.30); top: 60%; right: -60px; animation: blobFloat2 10s ease-in-out infinite; }
+    [data-theme="dark"] .main-blob:nth-child(2) { background: rgba(236,72,153,0.20); }
+    .main-blob:nth-child(3) { width: 280px; height: 280px; background: rgba(20,184,166,0.25); bottom: -80px; left: 30%; animation: blobFloat3 14s ease-in-out infinite; }
+    [data-theme="dark"] .main-blob:nth-child(3) { background: rgba(20,184,166,0.18); }
+    .main-blob:nth-child(4) { width: 200px; height: 200px; background: rgba(251,191,36,0.20); top: 30%; left: 15%; animation: blobFloat4 9s ease-in-out infinite; }
+    [data-theme="dark"] .main-blob:nth-child(4) { background: rgba(251,191,36,0.15); }
+    .main-blob:nth-child(5) { width: 240px; height: 240px; background: rgba(56,189,248,0.25); top: 10%; right: 20%; animation: blobFloat5 11s ease-in-out infinite; }
+    [data-theme="dark"] .main-blob:nth-child(5) { background: rgba(56,189,248,0.18); }
+
+    .main-grid {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image: radial-gradient(circle, rgba(99,102,241,0.04) 1px, transparent 1px);
+      background-size: 32px 32px;
+      -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
+      mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
+    }
+
+    /* 毛玻璃卡片 */
+    .active-card {
+      background: rgba(255,255,255,0.75);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      backdrop-filter: blur(16px) saturate(180%);
+    }
+    [data-theme="dark"] .active-card {
+      background: rgba(17,24,39,0.75);
+    }
+    .table-wrapper {
+      background: rgba(255,255,255,0.75);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      backdrop-filter: blur(16px) saturate(180%);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    [data-theme="dark"] .table-wrapper {
+      background: rgba(17,24,39,0.75);
+    }
+    .stats-row .stat-card {
+      background: rgba(255,255,255,0.75);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      backdrop-filter: blur(16px) saturate(180%);
+    }
+    [data-theme="dark"] .stats-row .stat-card {
+      background: rgba(17,24,39,0.75);
+    }
+    .option-card {
+      background: rgba(255,255,255,0.75);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      backdrop-filter: blur(16px) saturate(180%);
+    }
+    [data-theme="dark"] .option-card {
+      background: rgba(17,24,39,0.75);
+    }
+
     /* === 3x-UI 侧边栏布局 === */
     .app-layout { display: flex; min-height: 100vh; }
 
@@ -2644,8 +2685,10 @@ INDEX_HTML = r"""<!doctype html>
     .content {
       flex: 1;
       margin-left: 220px;
-      background: var(--bg);
+      background: transparent;
       min-height: 100vh;
+      position: relative;
+      z-index: 1;
     }
 
     /* 移动端侧边栏 */
@@ -2672,7 +2715,7 @@ INDEX_HTML = r"""<!doctype html>
 
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: var(--bg);
+      background: transparent;
       color: var(--text);
       min-height: 100vh;
       -webkit-font-smoothing: antialiased;
@@ -3195,6 +3238,13 @@ INDEX_HTML = r"""<!doctype html>
   </style>
 </head>
 <body>
+<div class="main-blob"></div>
+<div class="main-blob"></div>
+<div class="main-blob"></div>
+<div class="main-blob"></div>
+<div class="main-blob"></div>
+<div class="main-grid"></div>
+
 <div class="app-layout">
 
   <button class="mobile-menu-btn" id="mobile_menu_btn" onclick="toggleSidebar()">
