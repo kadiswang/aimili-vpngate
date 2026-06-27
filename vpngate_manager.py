@@ -6150,6 +6150,7 @@ def session_cleanup_loop() -> None:
 
 def main() -> None:
     ensure_dirs()
+    log_to_json("INFO", "Main", "服务已启动，正在初始化...")
     kill_existing_openvpn_processes()
     
     log_file = DATA_DIR / "vpngate.log"
@@ -6215,13 +6216,19 @@ def main() -> None:
             
     if gateway_ready:
         print("[网关] 代理网关已成功启动监听，启动同步与检测脚本...", flush=True)
+        log_to_json("INFO", "Main", "代理网关启动成功")
     else:
         print("[警告] 代理网关启动超时，继续执行脚本...", flush=True)
+        log_to_json("WARNING", "Main", "代理网关启动超时")
 
     threading.Thread(target=collector_loop, daemon=True).start()
+    log_to_json("INFO", "Main", "节点采集线程已启动")
     threading.Thread(target=background_proxy_checker, daemon=True).start()
+    log_to_json("INFO", "Main", "代理检测线程已启动")
     threading.Thread(target=active_node_pinger, daemon=True).start()
+    log_to_json("INFO", "Main", "节点ping检测线程已启动")
     threading.Thread(target=session_cleanup_loop, daemon=True).start()
+    log_to_json("INFO", "Main", "会话清理线程已启动")
     
     ui_cfg = _cached_load_ui_config()
     ui_host = ui_cfg.get("host", UI_HOST)
@@ -6229,6 +6236,7 @@ def main() -> None:
     
     print(f"UI: http://{ui_host}:{ui_port}/", flush=True)
     print(f"Proxy: http://{LOCAL_PROXY_HOST}:{LOCAL_PROXY_PORT}", flush=True)
+    log_to_json("INFO", "Main", f"UI服务已启动: http://{ui_host}:{ui_port}/")
     DualStackHTTPServer((ui_host, ui_port), Handler).serve_forever()
 
 if __name__ == "__main__":
