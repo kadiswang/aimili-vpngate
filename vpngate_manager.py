@@ -2121,82 +2121,103 @@ LOGIN_HTML = r"""<!DOCTYPE html>
   <title>AimiliVPN - 安全登录</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    :root {
+      --bg: #e6e8ec;
+      --surface: #ffffff;
+      --surface-2: #f8fafc;
+      --border: #e2e8f0;
+      --border-light: #cbd5e1;
+      --border-color: #e2e8f0;
+      --text: #1e293b;
+      --text-primary: #1e293b;
+      --text-secondary: #64748b;
+      --text-muted: #94a3b8;
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --success: #10b981;
+      --success-bg: rgba(16,185,129,0.08);
+      --danger: #ef4444;
+      --danger-bg: rgba(239,68,68,0.08);
+      --warning: #f59e0b;
+      --warning-bg: rgba(245,158,11,0.08);
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.04);
+      --shadow: 0 1px 4px rgba(0,0,0,0.06), 0 2px 12px rgba(0,0,0,0.04);
+    }
+
+    [data-theme="dark"] {
+      --bg: #0a0e17;
+      --surface: #111827;
+      --surface-2: #1a2236;
+      --border: #1e293b;
+      --border-light: #273548;
+      --border-color: #1e293b;
+      --text: #f1f5f9;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --success-bg: rgba(16,185,129,0.12);
+      --danger-bg: rgba(239,68,68,0.12);
+      --warning-bg: rgba(245,158,11,0.12);
+      --shadow-sm: none;
+      --shadow: none;
+    }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       min-height: 100vh;
-      overflow: hidden;
-      background: linear-gradient(135deg, #eef2ff 0%, #fdf2f8 50%, #ecfeff 100%);
-      position: relative;
-    }
-
-    /* Blob decorations */
-    .login-blob {
-      position: fixed;
-      border-radius: 50%;
-      filter: blur(80px);
-      opacity: 0.6;
-      pointer-events: none;
-      z-index: 0;
-    }
-    .login-blob:nth-child(1) { width: 400px; height: 400px; background: rgba(99,102,241,0.35); top: -120px; left: -80px; animation: blobFloat1 12s ease-in-out infinite; }
-    .login-blob:nth-child(2) { width: 320px; height: 320px; background: rgba(236,72,153,0.30); top: 60%; right: -60px; animation: blobFloat2 10s ease-in-out infinite; }
-    .login-blob:nth-child(3) { width: 280px; height: 280px; background: rgba(20,184,166,0.25); bottom: -80px; left: 30%; animation: blobFloat3 14s ease-in-out infinite; }
-    .login-blob:nth-child(4) { width: 200px; height: 200px; background: rgba(251,191,36,0.20); top: 30%; left: 15%; animation: blobFloat4 9s ease-in-out infinite; }
-    .login-blob:nth-child(5) { width: 240px; height: 240px; background: rgba(56,189,248,0.25); top: 10%; right: 20%; animation: blobFloat5 11s ease-in-out infinite; }
-
-    @keyframes blobFloat1 { 0%,100%{transform:translate(0,0)scale(1)} 33%{transform:translate(60px,-40px)scale(1.08)} 66%{transform:translate(-30px,20px)scale(0.95)} }
-    @keyframes blobFloat2 { 0%,100%{transform:translate(0,0)scale(1)} 50%{transform:translate(-50px,-60px)scale(1.05)} }
-    @keyframes blobFloat3 { 0%,100%{transform:translate(0,0)scale(1)} 33%{transform:translate(40px,30px)scale(1.1)} 66%{transform:translate(-20px,-20px)scale(0.9)} }
-    @keyframes blobFloat4 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(30px,-30px)} }
-    @keyframes blobFloat5 { 0%,100%{transform:translate(0,0)scale(1)} 50%{transform:translate(-30px,20px)scale(0.9)} }
-
-    .login-grid {
-      position: fixed; inset: 0; z-index: 0; pointer-events: none;
-      background-image: radial-gradient(circle, rgba(99,102,241,0.04) 1px, transparent 1px);
-      background-size: 32px 32px;
-      -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
-      mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
-    }
-
-    .login-container {
-      position: relative; z-index: 1;
-      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 24px 16px;
     }
 
-    .login-toolbar {
-      position: fixed; top: 20px; right: 24px; z-index: 10;
-      display: inline-flex; align-items: center; gap: 10px;
-    }
-    .login-toolbar button {
-      width: 40px; height: 40px; min-width: 40px;
-      border-radius: 50%; padding: 0;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; border: none;
-      background: rgba(255,255,255,0.7);
-      backdrop-filter: blur(8px);
-      color: #64748b; font-size: 16px;
-      transition: all .2s;
-    }
-    .login-toolbar button:hover { background: #fff; color: #6366f1; box-shadow: 0 2px 8px rgba(99,102,241,0.15); }
-
     .login-card {
       position: relative;
       width: 100%;
       max-width: 400px;
-      background: rgba(255,255,255,0.72);
-      -webkit-backdrop-filter: blur(24px) saturate(180%);
-      backdrop-filter: blur(24px) saturate(180%);
-      border: 1px solid rgba(255,255,255,0.6);
-      border-radius: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
       padding: 40px 32px 32px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 18px 50px rgba(99,102,241,0.18);
-      z-index: 2;
+      box-shadow: var(--shadow);
+    }
+
+    .login-toolbar {
+      position: fixed;
+      top: 20px;
+      right: 24px;
+      z-index: 10;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .login-toolbar button {
+      width: 40px;
+      height: 40px;
+      min-width: 40px;
+      border-radius: 50%;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-secondary);
+      font-size: 16px;
+      transition: all .2s;
+      box-shadow: var(--shadow-sm);
+    }
+    .login-toolbar button:hover {
+      background: var(--surface-2);
+      color: var(--primary);
+      border-color: var(--border-light);
     }
 
     .brand {
@@ -2213,7 +2234,7 @@ LOGIN_HTML = r"""<!DOCTYPE html>
     }
     .brand-sub {
       font-size: 14px;
-      color: #94a3b8;
+      color: var(--text-muted);
       margin-top: 6px;
     }
 
@@ -2222,7 +2243,7 @@ LOGIN_HTML = r"""<!DOCTYPE html>
       font-size: 30px;
       font-weight: 700;
       margin-bottom: 28px;
-      color: #1e293b;
+      color: var(--text);
     }
 
     .form-group {
@@ -2232,7 +2253,7 @@ LOGIN_HTML = r"""<!DOCTYPE html>
       display: block;
       font-size: 13px;
       font-weight: 600;
-      color: #64748b;
+      color: var(--text-secondary);
       margin-bottom: 8px;
     }
     .input-wrap {
@@ -2243,7 +2264,7 @@ LOGIN_HTML = r"""<!DOCTYPE html>
     .input-wrap .input-icon {
       position: absolute;
       left: 14px;
-      color: #94a3b8;
+      color: var(--text-muted);
       font-size: 15px;
       pointer-events: none;
     }
@@ -2251,23 +2272,24 @@ LOGIN_HTML = r"""<!DOCTYPE html>
       width: 100%;
       height: 46px;
       padding: 0 14px 0 42px;
-      background: #fff;
-      border: 1.5px solid #e2e8f0;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
       border-radius: 10px;
-      color: #1e293b;
+      color: var(--text);
       font-family: inherit;
       font-size: 14px;
       outline: none;
       transition: border-color .2s, box-shadow .2s;
     }
+    [data-theme="dark"] .input-wrap input { background: var(--bg); border-color: var(--border); }
     .input-wrap input:focus {
-      border-color: #6366f1;
+      border-color: var(--primary);
       box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
     }
-    .input-wrap input::placeholder { color: #cbd5e1; }
+    .input-wrap input::placeholder { color: var(--text-muted); }
 
     .error-message {
-      color: #ef4444;
+      color: var(--danger);
       font-size: 13px;
       margin-top: 8px;
       display: none;
@@ -2293,21 +2315,13 @@ LOGIN_HTML = r"""<!DOCTYPE html>
     .login-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
   </style>
 </head>
-<body>
-  <div class="login-blob"></div>
-  <div class="login-blob"></div>
-  <div class="login-blob"></div>
-  <div class="login-blob"></div>
-  <div class="login-blob"></div>
-  <div class="login-grid"></div>
+  <body>
+    <div class="login-toolbar">
+      <button id="login_theme_btn" onclick="toggleLoginTheme()" title="切换主题">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+      </button>
+    </div>
 
-  <div class="login-toolbar">
-    <button id="login_theme_btn" onclick="cycleLoginTheme()" title="切换主题">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-    </button>
-  </div>
-
-  <div class="login-container">
     <div class="login-card">
       <div class="brand">
         <div class="brand-name">AimiliVPN</div>
@@ -2343,39 +2357,31 @@ LOGIN_HTML = r"""<!DOCTYPE html>
   </div>
 
   <script>
-    function cycleLoginTheme() {
-      var html = document.documentElement;
-      var cur = html.getAttribute('data-login-theme') || 'light';
-      var next = cur === 'light' ? 'dark' : 'light';
-      html.setAttribute('data-login-theme', next);
-      if (next === 'dark') {
-        document.body.style.background = 'radial-gradient(ellipse at 25% 20%, #152038 0%, #0d1117 60%)';
-        document.querySelector('.login-card').style.background = 'rgba(28,30,36,0.55)';
-        document.querySelector('.login-card').style.borderColor = 'rgba(255,255,255,0.10)';
-        document.querySelector('.login-card').style.boxShadow = '0 1px 3px rgba(0,0,0,0.4), 0 20px 60px rgba(59,130,246,0.22)';
-        document.querySelector('.welcome').style.color = '#f1f5f9';
-        document.querySelector('.brand-sub').style.color = '#64748b';
-        document.querySelector('.brand-name').style.background = 'linear-gradient(135deg, #60a5fa, #1d4ed8)';
-        document.querySelector('.brand-name').style['-webkit-background-clip'] = 'text';
-        document.querySelector('.brand-name').style.backgroundClip = 'text';
-        document.querySelectorAll('.input-wrap input').forEach(function(i){i.style.background='#1a1b1f';i.style.color='#f1f5f9';i.style.borderColor='#334155'});
-        var btns = document.querySelectorAll('.login-toolbar button');
-        btns.forEach(function(b){b.style.background='rgba(255,255,255,0.08)';b.style.color='#94a3b8'});
-      } else {
-        document.body.style.background = 'linear-gradient(135deg, #eef2ff 0%, #fdf2f8 50%, #ecfeff 100%)';
-        document.querySelector('.login-card').style.background = 'rgba(255,255,255,0.72)';
-        document.querySelector('.login-card').style.borderColor = 'rgba(255,255,255,0.6)';
-        document.querySelector('.login-card').style.boxShadow = '0 1px 3px rgba(0,0,0,0.04), 0 18px 50px rgba(99,102,241,0.18)';
-        document.querySelector('.welcome').style.color = '#1e293b';
-        document.querySelector('.brand-sub').style.color = '#94a3b8';
-        document.querySelector('.brand-name').style.background = 'linear-gradient(135deg, #6366f1, #ec4899)';
-        document.querySelector('.brand-name').style['-webkit-background-clip'] = 'text';
-        document.querySelector('.brand-name').style.backgroundClip = 'text';
-        document.querySelectorAll('.input-wrap input').forEach(function(i){i.style.background='#fff';i.style.color='#1e293b';i.style.borderColor='#e2e8f0'});
-        var btns = document.querySelectorAll('.login-toolbar button');
-        btns.forEach(function(b){b.style.background='rgba(255,255,255,0.7)';b.style.color='#64748b'});
-      }
+    const THEME_KEY = 'aimili_theme';
+    var themeLabels = { light: '明亮模式', dark: '暗黑模式', system: '跟随系统' };
+    var themeIcons = {
+      light: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />',
+      dark: '<path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />',
+      system: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />'
+    };
+    function getThemeIcon(theme) { return themeIcons[theme] || themeIcons.light; }
+    function setLoginTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme);
+      var btn = document.getElementById('login_theme_btn');
+      if (btn) btn.innerHTML = getThemeIcon(theme);
+      localStorage.setItem(THEME_KEY, theme);
     }
+    function toggleLoginTheme() {
+      var saved = localStorage.getItem(THEME_KEY) || 'light';
+      var next = saved === 'light' ? 'dark' : (saved === 'dark' ? 'system' : 'light');
+      setLoginTheme(next);
+    }
+    
+    // 应用保存的主题
+    (function() {
+      var saved = localStorage.getItem(THEME_KEY) || 'light';
+      setLoginTheme(saved);
+    })();
 
     async function handleLogin(e) {
       e.preventDefault();
