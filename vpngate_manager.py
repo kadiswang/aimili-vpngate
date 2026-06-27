@@ -2121,7 +2121,7 @@ LOGIN_HTML = r"""<!DOCTYPE html>
   <title>AimiliVPN - 安全登录</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
     :root {
       --bg: #e6e8ec;
@@ -2169,55 +2169,89 @@ LOGIN_HTML = r"""<!DOCTYPE html>
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       min-height: 100vh;
+      overflow: hidden;
       background: var(--bg);
-      color: var(--text);
+      position: relative;
+    }
+
+    /* Blob decorations */
+    .login-blob {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.6;
+      pointer-events: none;
+      z-index: 0;
+    }
+    [data-theme="dark"] .login-blob { opacity: 0.35; }
+    .login-blob:nth-child(1) { width: 400px; height: 400px; background: rgba(99,102,241,0.35); top: -120px; left: -80px; animation: blobFloat1 12s ease-in-out infinite; }
+    [data-theme="dark"] .login-blob:nth-child(1) { background: rgba(99,102,241,0.25); }
+    .login-blob:nth-child(2) { width: 320px; height: 320px; background: rgba(236,72,153,0.30); top: 60%; right: -60px; animation: blobFloat2 10s ease-in-out infinite; }
+    [data-theme="dark"] .login-blob:nth-child(2) { background: rgba(236,72,153,0.20); }
+    .login-blob:nth-child(3) { width: 280px; height: 280px; background: rgba(20,184,166,0.25); bottom: -80px; left: 30%; animation: blobFloat3 14s ease-in-out infinite; }
+    [data-theme="dark"] .login-blob:nth-child(3) { background: rgba(20,184,166,0.18); }
+    .login-blob:nth-child(4) { width: 200px; height: 200px; background: rgba(251,191,36,0.20); top: 30%; left: 15%; animation: blobFloat4 9s ease-in-out infinite; }
+    [data-theme="dark"] .login-blob:nth-child(4) { background: rgba(251,191,36,0.15); }
+    .login-blob:nth-child(5) { width: 240px; height: 240px; background: rgba(56,189,248,0.25); top: 10%; right: 20%; animation: blobFloat5 11s ease-in-out infinite; }
+    [data-theme="dark"] .login-blob:nth-child(5) { background: rgba(56,189,248,0.18); }
+
+    @keyframes blobFloat1 { 0%,100%{transform:translate(0,0)scale(1)} 33%{transform:translate(60px,-40px)scale(1.08)} 66%{transform:translate(-30px,20px)scale(0.95)} }
+    @keyframes blobFloat2 { 0%,100%{transform:translate(0,0)scale(1)} 50%{transform:translate(-50px,-60px)scale(1.05)} }
+    @keyframes blobFloat3 { 0%,100%{transform:translate(0,0)scale(1)} 33%{transform:translate(40px,30px)scale(1.1)} 66%{transform:translate(-20px,-20px)scale(0.9)} }
+    @keyframes blobFloat4 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(30px,-30px)} }
+    @keyframes blobFloat5 { 0%,100%{transform:translate(0,0)scale(1)} 50%{transform:translate(-30px,20px)scale(0.9)} }
+
+    .login-grid {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image: radial-gradient(circle, rgba(99,102,241,0.04) 1px, transparent 1px);
+      background-size: 32px 32px;
+      -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
+      mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
+    }
+
+    .login-container {
+      position: relative; z-index: 1;
+      min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 24px 16px;
     }
 
+    .login-toolbar {
+      position: fixed; top: 20px; right: 24px; z-index: 10;
+      display: inline-flex; align-items: center; gap: 10px;
+    }
+    .login-toolbar button {
+      width: 40px; height: 40px; min-width: 40px;
+      border-radius: 50%; padding: 0;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-secondary); font-size: 16px;
+      transition: all .2s;
+      box-shadow: var(--shadow-sm);
+    }
+    [data-theme="dark"] .login-toolbar button { background: rgba(255,255,255,0.08); color: #94a3b8; border-color: rgba(255,255,255,0.1); }
+    .login-toolbar button:hover { background: var(--surface-2); color: var(--primary); border-color: var(--border-light); }
+
     .login-card {
       position: relative;
       width: 100%;
       max-width: 400px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
+      background: rgba(255,255,255,0.72);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid rgba(255,255,255,0.6);
+      border-radius: 20px;
       padding: 40px 32px 32px;
-      box-shadow: var(--shadow);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 18px 50px rgba(99,102,241,0.18);
+      z-index: 2;
     }
-
-    .login-toolbar {
-      position: fixed;
-      top: 20px;
-      right: 24px;
-      z-index: 10;
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .login-toolbar button {
-      width: 40px;
-      height: 40px;
-      min-width: 40px;
-      border-radius: 50%;
-      padding: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      border: 1px solid var(--border);
-      background: var(--surface);
-      color: var(--text-secondary);
-      font-size: 16px;
-      transition: all .2s;
-      box-shadow: var(--shadow-sm);
-    }
-    .login-toolbar button:hover {
-      background: var(--surface-2);
-      color: var(--primary);
-      border-color: var(--border-light);
+    [data-theme="dark"] .login-card {
+      background: rgba(28,30,36,0.55);
+      border-color: rgba(255,255,255,0.10);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 20px 60px rgba(59,130,246,0.22);
     }
 
     .brand {
@@ -2231,6 +2265,11 @@ LOGIN_HTML = r"""<!DOCTYPE html>
       -webkit-background-clip: text;
       background-clip: text;
       -webkit-text-fill-color: transparent;
+    }
+    [data-theme="dark"] .brand-name {
+      background: linear-gradient(135deg, #60a5fa, #1d4ed8);
+      -webkit-background-clip: text;
+      background-clip: text;
     }
     .brand-sub {
       font-size: 14px;
@@ -2272,7 +2311,7 @@ LOGIN_HTML = r"""<!DOCTYPE html>
       width: 100%;
       height: 46px;
       padding: 0 14px 0 42px;
-      background: var(--bg);
+      background: var(--surface);
       border: 1.5px solid var(--border);
       border-radius: 10px;
       color: var(--text);
@@ -2281,7 +2320,6 @@ LOGIN_HTML = r"""<!DOCTYPE html>
       outline: none;
       transition: border-color .2s, box-shadow .2s;
     }
-    [data-theme="dark"] .input-wrap input { background: var(--bg); border-color: var(--border); }
     .input-wrap input:focus {
       border-color: var(--primary);
       box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
@@ -2316,13 +2354,21 @@ LOGIN_HTML = r"""<!DOCTYPE html>
   </style>
 </head>
   <body>
+    <div class="login-blob"></div>
+    <div class="login-blob"></div>
+    <div class="login-blob"></div>
+    <div class="login-blob"></div>
+    <div class="login-blob"></div>
+    <div class="login-grid"></div>
+
     <div class="login-toolbar">
       <button id="login_theme_btn" onclick="toggleLoginTheme()" title="切换主题">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
       </button>
     </div>
 
-    <div class="login-card">
+    <div class="login-container">
+      <div class="login-card">
       <div class="brand">
         <div class="brand-name">AimiliVPN</div>
         <div class="brand-sub">VPN 节点管理系统</div>
