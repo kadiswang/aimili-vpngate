@@ -5078,7 +5078,7 @@ function openLogsModal() {
   $("logs_modal").style.display = "flex";
   loadLogs();
   if (logsPollInterval) clearInterval(logsPollInterval);
-  logsPollInterval = setInterval(loadLogs, 2500);
+  logsPollInterval = setInterval(loadLogs, 5000);
 }
 
 function closeLogsModal() {
@@ -5101,6 +5101,7 @@ async function loadLogs() {
   }
 }
 
+let lastRenderedLogKey = "";
 function filterAndRenderLogs() {
   const filterVal = $("log_filter_select").value;
   const term = $("log_terminal_container");
@@ -5114,6 +5115,10 @@ function filterAndRenderLogs() {
   } else if (filterVal === "system") {
     filtered = rawLogsCache.filter(l => !["Proxy", "VPN"].includes(l.module));
   }
+  
+  const renderKey = filterVal + "|" + (filtered.length > 0 ? filtered[filtered.length - 1].timestamp + filtered[filtered.length - 1].message : "");
+  if (renderKey === lastRenderedLogKey) return;
+  lastRenderedLogKey = renderKey;
   
   if (filtered.length === 0) {
     term.innerHTML = `<div style="color: var(--text-secondary); text-align: center; margin-top: 150px;">暂无该类型日志。</div>`;
@@ -5673,15 +5678,17 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     with lock:
                         with open(log_file, "r", encoding="utf-8") as f:
-                            for line in f:
-                                line = line.strip()
-                                if line:
-                                    try:
-                                        entries.append(json.loads(line))
-                                    except Exception:
-                                        pass
+                            all_lines = f.readlines()
+                    for line in all_lines:
+                        line = line.strip()
+                        if line:
+                            try:
+                                entries.append(json.loads(line))
+                            except Exception:
+                                pass
                 except Exception as e:
                     print(f"[API Logs] Error reading log file: {e}", flush=True)
+            entries = entries[-200:]
             self.send_json({"logs": entries, "total": len(entries), "tail": len(entries)})
         else:
             self.send_json({"error": "not found"}, HTTPStatus.NOT_FOUND)
