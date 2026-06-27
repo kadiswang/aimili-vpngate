@@ -16,6 +16,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+from collections import deque
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -5673,23 +5674,21 @@ class Handler(BaseHTTPRequestHandler):
             logs_dir = DATA_DIR / "logs"
             date_str = time.strftime("%Y-%m-%d", time.localtime())
             log_file = logs_dir / f"{date_str}.json"
-            entries = []
+            entries = deque(maxlen=200)
             if log_file.exists():
                 try:
                     with lock:
                         with open(log_file, "r", encoding="utf-8") as f:
-                            all_lines = f.readlines()
-                    for line in all_lines:
-                        line = line.strip()
-                        if line:
-                            try:
-                                entries.append(json.loads(line))
-                            except Exception:
-                                pass
+                            for line in f:
+                                line = line.strip()
+                                if line:
+                                    try:
+                                        entries.append(json.loads(line))
+                                    except Exception:
+                                        pass
                 except Exception as e:
                     print(f"[API Logs] Error reading log file: {e}", flush=True)
-            entries = entries[-200:]
-            self.send_json({"logs": entries, "total": len(entries), "tail": len(entries)})
+            self.send_json({"logs": list(entries), "total": len(entries), "tail": len(entries)})
         else:
             self.send_json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 
