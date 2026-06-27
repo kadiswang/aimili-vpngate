@@ -2579,9 +2579,11 @@ INDEX_HTML = r"""<!doctype html>
       background: rgba(255,255,255,0.75);
       -webkit-backdrop-filter: blur(16px) saturate(180%);
       backdrop-filter: blur(16px) saturate(180%);
+      border: 1px solid rgba(0,0,0,0.04);
     }
     [data-theme="dark"] .option-card {
       background: rgba(17,24,39,0.75);
+      border: 1px solid rgba(255,255,255,0.08);
     }
 
     /* === 3x-UI 侧边栏布局 === */
@@ -3063,7 +3065,7 @@ INDEX_HTML = r"""<!doctype html>
 
     .option-card-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
     .option-card-desc { font-size: 11px; color: var(--text-muted); }
-    [data-theme="dark"] .option-card-desc { color: #94a3b8; }
+    [data-theme="dark"] .option-card-desc { color: #cbd5e1; }
 
     .favorites-panel {
       background: var(--surface);
@@ -3204,6 +3206,12 @@ INDEX_HTML = r"""<!doctype html>
       padding: 16px;
     }
     .modal-content .btn-primary { height: 38px; padding: 0 18px; }
+    
+    /* 代理设置弹窗暗黑模式文字颜色覆盖 */
+    [data-theme="dark"] .modal-content .form-hint,
+    [data-theme="dark"] .modal-content .option-card-desc {
+      color: #cbd5e1 !important;
+    }
     .input-field { width: 100%; height: 40px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 0 12px; color: var(--text); font-family: inherit; font-size: 14px; outline: none; }
     .input-field:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
     .vps-links { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
@@ -3528,7 +3536,7 @@ INDEX_HTML = r"""<!doctype html>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;color:var(--primary)"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0z"/><path d="M12 14v7m-3-3h6"/></svg>
             上游代理（拉取节点用）
           </label>
-          <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.4;">配置后通过代理访问 vpngate.net 拉取节点列表。留空则不启用。</p>
+          <p class="form-hint" style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.4;">配置后通过代理访问 vpngate.net 拉取节点列表。留空则不启用。</p>
           
           <div class="form-group" style="margin-bottom: 12px;">
             <label class="form-label" for="net_upstream_enabled">启用上游代理</label>
@@ -3615,7 +3623,7 @@ INDEX_HTML = r"""<!doctype html>
             </div>
           </div>
           
-          <div id="net_routing_warning" style="font-size: 12px; color: var(--text-secondary); line-height: 1.4; padding: 8px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; margin-top: 8px;">
+          <div id="net_routing_warning" class="form-hint" style="font-size: 12px; color: var(--text-secondary); line-height: 1.4; padding: 8px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; margin-top: 8px;">
             ℹ️ <strong>自动配置</strong>：全自动测试并选择最佳IP。在使用过程中，如果当前连接节点没有失效，将不再更换IP；如果当前节点失效，系统将立刻秒级自动漂移到其他最快的可用节点。
           </div>
         </div>
