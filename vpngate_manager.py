@@ -3212,6 +3212,9 @@ INDEX_HTML = r"""<!doctype html>
     [data-theme="dark"] .modal-content .option-card-desc {
       color: #cbd5e1 !important;
     }
+    [data-theme="dark"] .modal-content .option-card.active {
+      background: rgba(99,102,241,0.15) !important;
+    }
     
     /* 所有弹窗暗黑模式通用覆盖 */
     [data-theme="dark"] .modal-content {
