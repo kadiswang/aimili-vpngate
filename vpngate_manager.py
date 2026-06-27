@@ -3063,6 +3063,7 @@ INDEX_HTML = r"""<!doctype html>
 
     .option-card-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
     .option-card-desc { font-size: 11px; color: var(--text-muted); }
+    [data-theme="dark"] .option-card-desc { color: #94a3b8; }
 
     .favorites-panel {
       background: var(--surface);
