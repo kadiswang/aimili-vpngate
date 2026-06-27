@@ -911,20 +911,55 @@ def row_to_node(row: dict[str, str], config_text: str) -> dict[str, Any]:
 def fetch_candidates() -> list[dict[str, Any]]:
     blacklist = load_blacklist()
     candidates: list[dict[str, Any]] = []
-    seen_ips = set()
-    
+    seen_ips: dict[str, dict[str, Any]] = {}  # ip -> node（保留质量更高的）
+    last_err = None
+
+    # 1. 拉取 VPNGate 官方 API
+    log_to_json("INFO", "Main", "开始拉取官方 API 节点列表...")
+    vpngate_nodes = _fetch_vpngate_nodes(blacklist, seen_ips)
+    candidates.extend(vpngate_nodes)
+
+    # 2. 拉取 PublicVPNList（可选）
+    try:
+        import publicvpnlist as pvl
+        log_to_json("INFO", "Main", "开始拉取 PublicVPNList 节点列表...")
+        pvl_nodes = pvl.fetch_publicvpnlist_nodes()
+        _merge_nodes(pvl_nodes, seen_ips, candidates)
+        log_to_json("INFO", "Main", f"PublicVPNList 获取 {len(pvl_nodes)} 个节点")
+    except Exception as e:
+        print(f"[fetch_candidates] PublicVPNList 拉取失败: {e}", flush=True)
+        log_to_json("WARNING", "Main", f"PublicVPNList 拉取失败: {e}")
+
+    if not candidates:
+        err_msg = "所有节点来源均未获取到有效节点"
+        print(f"[错误代码 1001] {err_msg}", flush=True)
+        log_to_json("ERROR", "Main", f"[错误代码 1001] {err_msg}")
+        set_state(
+            last_fetch_status="error",
+            last_fetch_message=err_msg,
+        )
+        raise RuntimeError(err_msg)
+
+    set_state(
+        last_fetch_at=time.time(),
+        last_fetch_status="ok",
+        last_fetch_message=f"Fetched {len(candidates)} unique candidates across multiple sources.",
+        blacklisted_nodes=len(blacklist),
+    )
+    log_to_json("INFO", "Main", f"成功获取节点，共 {len(candidates)} 个候选节点")
+    return candidates
+
+
+def _fetch_vpngate_nodes(blacklist: dict[str, Any], seen_ips: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """拉取 VPNGate 官方 API 节点"""
+    nodes: list[dict[str, Any]] = []
     has_cache = len(cached_nodes()) > 0
     max_attempts = 1 if has_cache else 3
-    
-    attempts_targets = [
-        (API_URL, True),
-        (API_URL, False)
-    ]
+
+    attempts_targets = [(API_URL, True), (API_URL, False)]
     if API_URL.startswith("https://"):
         attempts_targets.append((API_URL.replace("https://", "http://"), True))
-        
-    log_to_json("INFO", "Main", "开始拉取官方 API 节点列表...")
-    
+
     last_err = None
     for url, verify_ssl in attempts_targets:
         for i in range(max_attempts):
@@ -933,9 +968,6 @@ def fetch_candidates() -> list[dict[str, Any]]:
                 print(f"[fetch_candidates] 第 {i+1} 次重试等待 {backoff:.1f}s...", flush=True)
                 time.sleep(backoff)
             try:
-                msg = f"尝试拉取 {url} (SSL验证: {verify_ssl}, 第 {i+1} 次尝试)..."
-                print(f"[fetch_candidates] {msg}", flush=True)
-                log_to_json("INFO", "Main", msg)
                 api_text = fetch_api_text(url, verify_ssl)
                 rows = parse_vpngate_rows(api_text)
                 for row in rows[:MAX_SCAN_ROWS]:
@@ -955,18 +987,18 @@ def fetch_candidates() -> list[dict[str, Any]]:
                     entry = blacklist.get(node["id"])
                     if entry and float(entry.get("until", 0) or 0) > time.time():
                         continue
-                    candidates.append(node)
-                    seen_ips.add(ip)
-                if candidates:
-                    break
+                    nodes.append(node)
+                    seen_ips[ip] = node
+                if nodes:
+                    return nodes
             except Exception as e:
                 last_err = e
                 print(f"[fetch_candidates] 拉取失败 (URL: {url}, 验证: {verify_ssl}): {e}", flush=True)
                 log_to_json("WARNING", "Main", f"拉取失败 (URL: {url}, 验证: {verify_ssl}): {e}")
-        if candidates:
+        if nodes:
             break
-            
-    if not candidates:
+
+    if not nodes and last_err:
         err_code, diag_msg = vpn_utils.diagnose_api_failure(API_URL)
         full_err_msg = f"获取官方 API 节点最终失败: {last_err} | 诊断结果: {diag_msg}"
         print(f"[错误代码 {err_code}] {full_err_msg}", flush=True)
@@ -974,21 +1006,51 @@ def fetch_candidates() -> list[dict[str, Any]]:
         set_state(
             last_fetch_status="error",
             last_fetch_error_code=err_code,
-            last_fetch_message=diag_msg
+            last_fetch_message=diag_msg,
         )
-        if last_err:
-            raise RuntimeError(diag_msg) from last_err
-        else:
-            raise RuntimeError(diag_msg)
-                
-    set_state(
-        last_fetch_at=time.time(),
-        last_fetch_status="ok",
-        last_fetch_message=f"Fetched {len(candidates)} unique candidates across multiple attempts.",
-        blacklisted_nodes=len(blacklist),
-    )
-    log_to_json("INFO", "Main", f"成功获取官方 API 节点，共 {len(candidates)} 个候选节点")
-    return candidates
+    return nodes
+
+
+def _merge_nodes(
+    new_nodes: list[dict[str, Any]],
+    seen_ips: dict[str, dict[str, Any]],
+    candidates: list[dict[str, Any]],
+) -> None:
+    """合并新节点到候选池，按 IP 去重，保留质量更高的"""
+    for node in new_nodes:
+        ip = node.get("ip", "")
+        if not ip:
+            continue
+        existing = seen_ips.get(ip)
+        if existing is None:
+            candidates.append(node)
+            seen_ips[ip] = node
+            continue
+
+        # 比较质量：优先保留 speed 更高 或 latency 更低 的
+        new_speed = _safe_float(node.get("speed"), 0)
+        old_speed = _safe_float(existing.get("speed"), 0)
+        new_latency = _safe_int(node.get("latency_ms"), 9999)
+        old_latency = _safe_int(existing.get("latency_ms"), 9999)
+
+        if new_speed > old_speed or new_latency < old_latency:
+            candidates.remove(existing)
+            candidates.append(node)
+            seen_ips[ip] = node
+
+
+def _safe_float(val: Any, default: float = 0.0) -> float:
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+
+def _safe_int(val: Any, default: int = 0) -> int:
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return default
 
 def cached_nodes() -> list[dict[str, Any]]:
     return read_nodes()
