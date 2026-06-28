@@ -1176,12 +1176,31 @@ fi
 
 # Get VPS public IP
 echo -e "正在获取 VPS 公网 IP..."
-PUBLIC_IP=$(curl -s --max-time 3 https://api.ipify.org || curl -s --max-time 3 https://ifconfig.me || curl -s --max-time 3 icanhazip.com || echo "您的服务器公网IP")
+PUBLIC_IP=""
+for url in "https://api.ipify.org" "https://ifconfig.me" "https://icanhazip.com" "http://api.ipify.org" "http://ifconfig.me" "http://icanhazip.com" "https://api.ip.sb" "https://ipinfo.io/ip"; do
+    PUBLIC_IP=$(curl -s --max-time 5 "$url" 2>/dev/null | tr -d '[:space:]')
+    if [ -n "$PUBLIC_IP" ] && echo "$PUBLIC_IP" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+        break
+    fi
+    PUBLIC_IP=""
+done
+if [ -z "$PUBLIC_IP" ]; then
+    echo -e "${YELLOW}警告: 无法自动检测公网 IP，请手动输入:${PLAIN}"
+    read -p "请输入 VPS 公网 IP: " PUBLIC_IP
+fi
 echo -n "$PUBLIC_IP" > "${INSTALL_DIR}/vpngate_data/public_ip.txt"
+echo -e "${GREEN}  -> 公网 IP: ${PUBLIC_IP}${PLAIN}"
 
 # Get VPS public IPv6
 echo -e "正在获取 VPS 公网 IPv6..."
-PUBLIC_IPV6=$(curl -6 -s --max-time 3 https://api.ipify.org || curl -6 -s --max-time 3 https://ifconfig.me || curl -6 -s --max-time 3 icanhazip.com || echo "")
+PUBLIC_IPV6=""
+for url in "https://api6.ipify.org" "https://ipv6.ifconfig.me" "http://api6.ipify.org"; do
+    PUBLIC_IPV6=$(curl -6 -s --max-time 5 "$url" 2>/dev/null | tr -d '[:space:]')
+    if [ -n "$PUBLIC_IPV6" ] && echo "$PUBLIC_IPV6" | grep -qE '^[0-9a-fA-F:]+$'; then
+        break
+    fi
+    PUBLIC_IPV6=""
+done
 
 echo -e "\n${GREEN}==========================================================${PLAIN}"
 echo -e "${GREEN}             AimiliVPN 源码一键部署已完成！${PLAIN}"
