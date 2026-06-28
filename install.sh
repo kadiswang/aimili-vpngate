@@ -1175,18 +1175,42 @@ except: print('\n\n\n\n')
 fi
 
 # Get VPS public IP
+# 获取 VPS 公网 IP
 echo -e "正在获取 VPS 公网 IP..."
-PUBLIC_IP=""
-for url in "https://api.ipify.org" "https://ifconfig.me" "https://icanhazip.com" "http://api.ipify.org" "http://ifconfig.me" "http://icanhazip.com" "https://api.ip.sb" "https://ipinfo.io/ip"; do
-    PUBLIC_IP=$(curl -s --max-time 5 "$url" 2>/dev/null | tr -d '[:space:]')
-    if [ -n "$PUBLIC_IP" ] && echo "$PUBLIC_IP" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
-        break
+
+# 先检测 DNS 解析是否正常
+DNS_OK=false
+if command -v curl >/dev/null 2>&1; then
+    if curl -s --max-time 3 https://api.ipify.org >/dev/null 2>&1 || curl -s --max-time 3 http://api.ipify.org >/dev/null 2>&1; then
+        DNS_OK=true
     fi
-    PUBLIC_IP=""
-done
+elif command -v dig >/dev/null 2>&1; then
+    if dig +short api.ipify.org >/dev/null 2>&1; then
+        DNS_OK=true
+    fi
+fi
+
+PUBLIC_IP=""
+if [ "$DNS_OK" = true ]; then
+    for url in "https://api.ipify.org" "https://ifconfig.me" "https://icanhazip.com" "http://api.ipify.org" "http://ifconfig.me" "http://icanhazip.com" "https://api.ip.sb" "https://ipinfo.io/ip"; do
+        PUBLIC_IP=$(curl -s --max-time 5 "$url" 2>/dev/null | tr -d '[:space:]')
+        if [ -n "$PUBLIC_IP" ] && echo "$PUBLIC_IP" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+            break
+        fi
+        PUBLIC_IP=""
+    done
+fi
+
 if [ -z "$PUBLIC_IP" ]; then
-    echo -e "${YELLOW}警告: 无法自动检测公网 IP，请手动输入:${PLAIN}"
-    read -p "请输入 VPS 公网 IP: " PUBLIC_IP
+    echo -e "${YELLOW}警告: 无法通过 DNS 自动检测公网 IP（DNS 解析失败或网络受限）${PLAIN}"
+    echo -e "${YELLOW}本机网卡 IP: $(ip addr show eth0 2>/dev/null | grep "inet " | awk '{print $2}' | cut -d/ -f1 | head -1)${PLAIN}"
+    echo -e "${YELLOW}请手动输入 VPS 公网 IP（直接回车使用本机 IP）:${PLAIN}"
+    read -t 30 -p "> " USER_INPUT_IP || true
+    if [ -n "$USER_INPUT_IP" ]; then
+        PUBLIC_IP="$USER_INPUT_IP"
+    else
+        PUBLIC_IP=$(ip addr show eth0 2>/dev/null | grep "inet " | awk '{print $2}' | cut -d/ -f1 | head -1)
+    fi
 fi
 echo -n "$PUBLIC_IP" > "${INSTALL_DIR}/vpngate_data/public_ip.txt"
 echo -e "${GREEN}  -> 公网 IP: ${PUBLIC_IP}${PLAIN}"
@@ -1194,13 +1218,18 @@ echo -e "${GREEN}  -> 公网 IP: ${PUBLIC_IP}${PLAIN}"
 # Get VPS public IPv6
 echo -e "正在获取 VPS 公网 IPv6..."
 PUBLIC_IPV6=""
-for url in "https://api6.ipify.org" "https://ipv6.ifconfig.me" "http://api6.ipify.org"; do
-    PUBLIC_IPV6=$(curl -6 -s --max-time 5 "$url" 2>/dev/null | tr -d '[:space:]')
-    if [ -n "$PUBLIC_IPV6" ] && echo "$PUBLIC_IPV6" | grep -qE '^[0-9a-fA-F:]+$'; then
-        break
-    fi
-    PUBLIC_IPV6=""
-done
+if [ "$DNS_OK" = true ]; then
+    for url in "https://api6.ipify.org" "https://ipv6.ifconfig.me" "http://api6.ipify.org"; do
+        PUBLIC_IPV6=$(curl -6 -s --max-time 5 "$url" 2>/dev/null | tr -d '[:space:]')
+        if [ -n "$PUBLIC_IPV6" ] && echo "$PUBLIC_IPV6" | grep -qE '^[0-9a-fA-F:]+$'; then
+            break
+        fi
+        PUBLIC_IPV6=""
+    done
+fi
+if [ -n "$PUBLIC_IPV6" ]; then
+    echo -e "${GREEN}  -> 公网 IPv6: ${PUBLIC_IPV6}${PLAIN}"
+fi
 
 echo -e "\n${GREEN}==========================================================${PLAIN}"
 echo -e "${GREEN}             AimiliVPN 源码一键部署已完成！${PLAIN}"
