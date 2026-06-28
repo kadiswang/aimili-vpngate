@@ -144,8 +144,14 @@ def _get_download_token(data_id: str, detail_url: str) -> str | None:
     except json.JSONDecodeError:
         return None
 
-    if not test_data.get("ok") or test_data.get("status") != "ok":
-        print(f"[PublicVPNList] 服务器不可用 id={data_id}: {test_data.get('message', '')}", flush=True)
+    # ok=true 且没有明确 error 就认为可用（status 可能是 "ok"/"unknown"/"inconclusive"）
+    if not test_data.get("ok") or test_data.get("error"):
+        print(f"[PublicVPNList] 服务器不可用 id={data_id}: {test_data.get('message', test_data.get('error', ''))}", flush=True)
+        return None
+
+    # ok=true 且没有明确 error 就认为可用（status 可能是 "ok"/"unknown"/"inconclusive"）
+    if not test_data.get("ok") or test_data.get("error"):
+        print(f"[PublicVPNList] 服务器不可用 id={data_id}: {test_data.get('message', test_data.get('error', ''))}", flush=True)
         return None
 
     # 3. 获取 token
@@ -175,7 +181,11 @@ def download_ovpn(token: str, referer: str) -> str | None:
 
 
 def _parse_remote_from_ovpn(text: str, expected_ip: str, expected_port: str) -> tuple[str, int, str]:
-    """从 .ovpn 提取 remote host/port/proto，并校验与页面信息一致"""
+    """从 .ovpn 提取 remote host/port/proto。
+    
+    注意：页面上显示的 IP 可能是代理 IP，.ovpn 里的 remote 才是真实连接地址。
+    不再强制校验 IP 匹配，只记录警告。
+    """
     remote_re = re.compile(r"^remote\s+(\S+)\s+(\d+)\s*(.*)?$", re.MULTILINE | re.IGNORECASE)
     m = remote_re.search(text)
     if not m:
@@ -186,10 +196,12 @@ def _parse_remote_from_ovpn(text: str, expected_ip: str, expected_port: str) -> 
     proto_flag = (m.group(3) or "").strip().lower()
     proto = "udp" if proto_flag == "udp" else "tcp"
 
+    # 页面 IP 和配置 IP 不一致时只记录日志，不跳过
     if expected_ip and host != expected_ip:
-        raise ValueError(f"remote host 不匹配: 页面 {expected_ip} vs 配置 {host}")
+        print(f"[PublicVPNList] 注意: 页面 IP {expected_ip} 与配置 IP {host} 不一致，使用配置 IP", flush=True)
+
     if expected_port and str(port) != str(expected_port):
-        raise ValueError(f"remote port 不匹配: 页面 {expected_port} vs 配置 {port}")
+        print(f"[PublicVPNList] 注意: 页面 port {expected_port} 与配置 port {port} 不一致，使用配置 port", flush=True)
 
     return host, port, proto
 
