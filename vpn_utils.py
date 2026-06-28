@@ -406,56 +406,63 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
     # 2. Perform HTTP query outside lock
     new_entries = {}
     chunk_size = 100
+    api_url = "https://ip-api.com/batch?lang=zh-CN&fields=status,message,query,country,regionName,city,isp,org,as,asname,proxy,hosting,mobile"
     for i in range(0, len(ips_to_query), chunk_size):
         chunk = ips_to_query[i : i + chunk_size]
         payload = json.dumps(chunk).encode("utf-8")
         request = urllib.request.Request(
-            "http://ip-api.com/batch?lang=zh-CN&fields=status,message,query,country,regionName,city,isp,org,as,asname,proxy,hosting,mobile",
+            api_url,
             data=payload,
             headers={"Content-Type": "application/json", "User-Agent": "vpngate-manager/2.2"},
             method="POST",
         )
-        try:
-            with urllib.request.urlopen(request, timeout=15) as response:
-                data = json.loads(response.read().decode("utf-8", errors="replace"))
-                if not isinstance(data, list):
-                    continue
-                for item in data:
-                    if not isinstance(item, dict):
-                        continue
-                    if item.get("status") != "success":
-                        continue
-                    query_ip = item.get("query")
-                    if not query_ip:
-                        continue
+        for attempt in range(2):
+            try:
+                with urllib.request.urlopen(request, timeout=15) as response:
+                    data = json.loads(response.read().decode("utf-8", errors="replace"))
+                    if not isinstance(data, list):
+                        break
+                    for item in data:
+                        if not isinstance(item, dict):
+                            continue
+                        if item.get("status") != "success":
+                            continue
+                        query_ip = item.get("query")
+                        if not query_ip:
+                            continue
 
-                    ip_type = "residential"
-                    if item.get("mobile"):
-                        ip_type = "mobile"
-                    elif item.get("hosting") or item.get("proxy"):
-                        ip_type = "hosting"
+                        ip_type = "residential"
+                        if item.get("mobile"):
+                            ip_type = "mobile"
+                        elif item.get("hosting") or item.get("proxy"):
+                            ip_type = "hosting"
 
-                    quality = "normal"
-                    if item.get("proxy"):
-                        quality = "proxy"
-                    elif item.get("hosting"):
-                        quality = "datacenter"
-                    elif item.get("mobile"):
-                        quality = "mobile"
+                        quality = "normal"
+                        if item.get("proxy"):
+                            quality = "proxy"
+                        elif item.get("hosting"):
+                            quality = "datacenter"
+                        elif item.get("mobile"):
+                            quality = "mobile"
 
-                    loc = " ".join(part for part in [item.get("country"), item.get("regionName"), item.get("city")] if part)
+                        loc = " ".join(part for part in [item.get("country"), item.get("regionName"), item.get("city")] if part)
 
-                    new_entries[query_ip] = {
-                        "owner": item.get("org") or item.get("isp") or "",
-                        "asn": item.get("as") or "",
-                        "as_name": item.get("asname") or "",
-                        "location": loc,
-                        "ip_type": ip_type,
-                        "quality": quality,
-                        "cached_at": now,
-                    }
-        except Exception as e:
-            print(f"[enrich_ip_info] Query failed: {e}", flush=True)
+                        new_entries[query_ip] = {
+                            "owner": item.get("org") or item.get("isp") or "",
+                            "asn": item.get("as") or "",
+                            "as_name": item.get("asname") or "",
+                            "location": loc,
+                            "ip_type": ip_type,
+                            "quality": quality,
+                            "cached_at": now,
+                        }
+                break
+            except Exception as e:
+                if attempt < 1:
+                    print(f"[enrich_ip_info] Query attempt {attempt + 1} failed: {e}, retrying...", flush=True)
+                    time.sleep(2)
+                else:
+                    print(f"[enrich_ip_info] Query failed after 2 attempts: {e}", flush=True)
 
     if not new_entries:
         return
