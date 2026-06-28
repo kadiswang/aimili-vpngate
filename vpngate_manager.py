@@ -4856,6 +4856,8 @@ async function saveCredentials(e) {
       } else {
         successDiv.textContent = res.reauth_required ? "账号密码保存成功，请重新登录..." : "账号密码保存成功，已即时生效！";
         successDiv.style.display = "block";
+        submitBtn.disabled = false;
+        submitBtn.textContent = "保存修改";
         setTimeout(() => {
           if (res.reauth_required) {
             window.location.reload();
@@ -4968,6 +4970,8 @@ async function saveNetwork(e) {
       } else {
         successDiv.textContent = "配置保存成功，已即时生效！";
         successDiv.style.display = "block";
+        submitBtn.disabled = false;
+        submitBtn.textContent = "保存修改";
         setTimeout(() => {
           closeNetworkModal();
           load();
