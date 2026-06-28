@@ -1602,15 +1602,28 @@ def test_node_by_id(node_id: str) -> dict[str, Any]:
     fallback_ping = parse_int(node.get("ping"))
 
     if not config_text.strip():
+        latency = vpn_utils.ping_latency_ms(h, p, fallback_ping)
+        ok = latency > 0
+        message = "端口开放，节点可达" if ok else "端口关闭或不可达"
         with lock:
             nodes = read_nodes()
             node = next((item for item in nodes if item.get("id") == node_id), None)
             if node:
-                node["probe_status"] = "not_checked"
-                node["probe_message"] = "缺少 OpenVPN 配置，无法探测"
+                node["latency_ms"] = latency
+                node["probe_status"] = "available" if ok else "unavailable"
+                node["probe_message"] = message
                 node["probed_at"] = time.time()
-                write_json(NODES_FILE, sort_all_nodes(nodes))
-        return {"id": node_id, "probe_status": "not_checked", "probe_message": "缺少 OpenVPN 配置，无法探测"}
+                sorted_nodes = sort_all_nodes(nodes)
+                write_json(NODES_FILE, sorted_nodes)
+                res = next((item for item in sorted_nodes if item.get("id") == node_id), node)
+                return res
+        return {
+            "id": node_id,
+            "latency_ms": latency,
+            "probe_status": "available" if ok else "unavailable",
+            "probe_message": message,
+            "probed_at": time.time(),
+        }
 
     temp_path = test_config_path(node_id)
     try:
@@ -1686,11 +1699,14 @@ def test_multiple_nodes(node_ids: list[str]) -> list[dict[str, Any]]:
         fallback_ping = parse_int(n_info.get("ping"))
 
         if not config_text.strip():
+            latency = vpn_utils.ping_latency_ms(h, p, fallback_ping)
+            ok = latency > 0
+            message = "端口开放，节点可达" if ok else "端口关闭或不可达"
             return {
                 "id": node_id,
-                "latency_ms": 0,
-                "probe_status": "not_checked",
-                "probe_message": "缺少 OpenVPN 配置，无法探测",
+                "latency_ms": latency,
+                "probe_status": "available" if ok else "unavailable",
+                "probe_message": message,
                 "probed_at": time.time(),
                 "owner": "",
                 "asn": "",
