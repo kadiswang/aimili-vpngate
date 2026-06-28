@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+print("[DEBUG] vpngate_manager.py loaded from: " + __file__, flush=True)
+
 import base64
 import csv
 import json
@@ -485,13 +487,16 @@ def read_nodes() -> list[dict[str, Any]]:
     now = time.time()
     with lock:
         if _nodes_cache is not None and now - _nodes_cache_time < _NODES_CACHE_TTL:
+            print(f"[DEBUG] read_nodes returning cached {len(_nodes_cache)} nodes", flush=True)
             return _nodes_cache
         raw = read_json(NODES_FILE, [])
+        print(f"[DEBUG] read_nodes reading {NODES_FILE}, got {len(raw) if isinstance(raw, list) else 'non-list'} items", flush=True)
         if not isinstance(raw, list):
             _nodes_cache = []
             return []
         _nodes_cache = [item for item in raw if isinstance(item, dict)]
         _nodes_cache_time = now
+        print(f"[DEBUG] read_nodes cached {len(_nodes_cache)} nodes", flush=True)
         return _nodes_cache
 
 def get_state() -> dict[str, Any]:
@@ -919,13 +924,35 @@ def fetch_candidates() -> list[dict[str, Any]]:
     vpngate_nodes = _fetch_vpngate_nodes(blacklist, seen_ips)
     candidates.extend(vpngate_nodes)
 
-    # 2. 拉取 PublicVPNList（可选）
+    # 2. 拉取 PublicVPNList（可选，带超时保护）
     try:
         import publicvpnlist as pvl
         log_to_json("INFO", "Main", "开始拉取 PublicVPNList 节点列表...")
-        pvl_nodes = pvl.fetch_publicvpnlist_nodes()
-        _merge_nodes(pvl_nodes, seen_ips, candidates)
-        log_to_json("INFO", "Main", f"PublicVPNList 获取 {len(pvl_nodes)} 个节点")
+        pvl_nodes: list[dict[str, Any]] = []
+        pvl_error: list[str] = []
+
+        def _pvl_worker() -> None:
+            try:
+                result = pvl.fetch_publicvpnlist_nodes()
+                pvl_nodes.extend(result)
+            except Exception as exc:
+                pvl_error.append(str(exc))
+
+        t = threading.Thread(target=_pvl_worker, daemon=True)
+        t.start()
+        t.join(timeout=90)
+        if t.is_alive():
+            log_to_json(
+                "WARNING",
+                "Main",
+                "PublicVPNList 拉取超时 (90s)，已跳过该来源",
+            )
+            print("[fetch_candidates] PublicVPNList 拉取超时，跳过", flush=True)
+        elif pvl_error:
+            raise RuntimeError(pvl_error[0])
+        else:
+            _merge_nodes(pvl_nodes, seen_ips, candidates)
+            log_to_json("INFO", "Main", f"PublicVPNList 获取 {len(pvl_nodes)} 个节点")
     except Exception as e:
         print(f"[fetch_candidates] PublicVPNList 拉取失败: {e}", flush=True)
         log_to_json("WARNING", "Main", f"PublicVPNList 拉取失败: {e}")
@@ -1569,10 +1596,21 @@ def test_node_by_id(node_id: str) -> dict[str, Any]:
         node = next((item for item in nodes if item.get("id") == node_id), None)
         if not node:
             raise ValueError(f"Node not found: {node_id}")
-        config_text = node.get("config_text") or ""
-        h = str(node.get("remote_host") or node.get("ip"))
-        p = parse_int(node.get("remote_port"))
-        fallback_ping = parse_int(node.get("ping"))
+    config_text = node.get("config_text") or ""
+    h = str(node.get("remote_host") or node.get("ip"))
+    p = parse_int(node.get("remote_port"))
+    fallback_ping = parse_int(node.get("ping"))
+
+    if not config_text.strip():
+        with lock:
+            nodes = read_nodes()
+            node = next((item for item in nodes if item.get("id") == node_id), None)
+            if node:
+                node["probe_status"] = "not_checked"
+                node["probe_message"] = "缺少 OpenVPN 配置，无法探测"
+                node["probed_at"] = time.time()
+                write_json(NODES_FILE, sort_all_nodes(nodes))
+        return {"id": node_id, "probe_status": "not_checked", "probe_message": "缺少 OpenVPN 配置，无法探测"}
 
     temp_path = test_config_path(node_id)
     try:
@@ -1646,7 +1684,22 @@ def test_multiple_nodes(node_ids: list[str]) -> list[dict[str, Any]]:
         h = str(n_info.get("remote_host") or n_info.get("ip"))
         p = parse_int(n_info.get("remote_port"))
         fallback_ping = parse_int(n_info.get("ping"))
-        
+
+        if not config_text.strip():
+            return {
+                "id": node_id,
+                "latency_ms": 0,
+                "probe_status": "not_checked",
+                "probe_message": "缺少 OpenVPN 配置，无法探测",
+                "probed_at": time.time(),
+                "owner": "",
+                "asn": "",
+                "as_name": "",
+                "location": "",
+                "ip_type": "",
+                "quality": "",
+            }
+
         temp_path = test_config_path(node_id)
         try:
             CONFIG_DIR.mkdir(exist_ok=True, parents=True)
@@ -3503,6 +3556,11 @@ INDEX_HTML = r"""<!doctype html>
       <option value="residential">住宅IP</option>
       <option value="hosting">机房IP</option>
     </select>
+    <select id="source_filter">
+      <option value="all">所有来源</option>
+      <option value="vpngate">VPNGate</option>
+      <option value="publicvpnlist">PublicVPNList</option>
+    </select>
     <button id="btn_favorites" class="toolbar-btn" type="button" onclick="toggleFavoritesView()" style="margin-left: auto; height: 42px; gap: 6px;">
       <svg xmlns="http://www.w3.org/2000/svg" style="width:16px; height:16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.907c.961 0 1.371 1.24.588 1.81l-3.97 2.883a1 1 0 00-.364 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.971-2.883a1 1 0 00-1.175 0l-3.97 2.883c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.364-1.118l-3.97-2.883c-.783-.57-.372-1.81.588-1.81h4.906a1 1 0 00.951-.69l1.519-4.674z" />
@@ -3966,10 +4024,22 @@ function updateCountryFilter() {
   }
 }
 
+function updateSourceFilter() {
+  const select = $("source_filter");
+  if (!select) return;
+  const hasPublicVPNList = nodes.some(n => n && n.source === "publicvpnlist");
+  if (hasPublicVPNList) {
+    select.style.display = "";
+  } else {
+    select.style.display = "none";
+  }
+}
+
 function getFilteredNodes() {
   const selectedCountry = $("country_filter").value;
   const selectedIpType = $("ip_type_filter").value;
   const selectedStatus = $("status_filter").value;
+  const selectedSource = $("source_filter").value;
   return nodes.filter(n => {
     if (!n) return false;
     if (selectedCountry && translateCountry(n.country) !== selectedCountry) {
@@ -3988,6 +4058,12 @@ function getFilteredNodes() {
     }
     if (selectedStatus === "unavailable" && (n.probe_status !== "unavailable" || n.active)) {
       return false;
+    }
+    if (selectedSource && selectedSource !== "all") {
+      const nodeSource = n.source === "publicvpnlist" ? "publicvpnlist" : "vpngate";
+      if (nodeSource !== selectedSource) {
+        return false;
+      }
     }
     const favoriteIds = Array.isArray(state.favorite_node_ids) ? state.favorite_node_ids : [];
     if (showFavoritesOnly && !favoriteIds.includes(n.id)) {
@@ -4368,6 +4444,7 @@ function startConnectionPolling() {
       state = data.state || {};
       stableSortNodes();
       updateCountryFilter();
+      updateSourceFilter();
       render();
       
       if (!state.is_connecting) {
@@ -4506,6 +4583,7 @@ async function load(){
 $("country_filter").onchange=()=>{ currentPage = 1; render(); };
 $("ip_type_filter").onchange=()=>{ currentPage = 1; render(); };
 $("status_filter").onchange=()=>{ currentPage = 1; render(); };
+$("source_filter").onchange=()=>{ currentPage = 1; render(); };
 
 function toggleSettingsSubmenu() {
   const sub = $("settings_submenu");
@@ -5074,6 +5152,7 @@ setInterval(async () => {
       state = d.state || {};
       stableSortNodes();
       updateCountryFilter();
+      updateSourceFilter();
       render();
     } catch(e) {}
   }
@@ -5574,6 +5653,7 @@ class Handler(BaseHTTPRequestHandler):
         return data
 
     def do_GET(self) -> None:
+        print(f"[DEBUG] do_GET called with path: {self.path}", flush=True)
         effective_path = self.validate_path()
         if effective_path == "": return
         
@@ -5588,8 +5668,10 @@ class Handler(BaseHTTPRequestHandler):
         if effective_path in ("/", "/index.html"):
             self.send_bytes(INDEX_HTML.encode("utf-8"), "text/html; charset=utf-8")
         elif effective_path == "/api/nodes":
+            print("[DEBUG] /api/nodes handler called", flush=True)
             global last_active_ping_time, last_active_latency, active_openvpn_node_id
             nodes = read_nodes()
+            print(f"[DEBUG] /api/nodes read_nodes returned {len(nodes)} nodes", flush=True)
             active_node = next((n for n in nodes if active_openvpn_node_id and n.get("id") == active_openvpn_node_id), None)
             for n in nodes:
                 n["active"] = (active_openvpn_node_id and n.get("id") == active_openvpn_node_id)
@@ -5623,6 +5705,7 @@ class Handler(BaseHTTPRequestHandler):
                 if "config_text" in stripped:
                     del stripped["config_text"]
                 stripped_nodes.append(stripped)
+            print(f"[DEBUG] /api/nodes returning {len(stripped_nodes)} nodes, sources: { {n.get('source', 'vpngate') for n in stripped_nodes} }", flush=True)
             self.send_json({"nodes": stripped_nodes, "state": get_state()})
         elif effective_path.startswith("/configs/"):
             filename = urllib.parse.unquote(effective_path.removeprefix("/configs/"))

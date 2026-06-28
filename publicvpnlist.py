@@ -217,10 +217,10 @@ def fetch_publicvpnlist_nodes() -> list[dict[str, Any]]:
         return []
 
     index_url = _env_str("PUBLICVPNLIST_COUNTRY_INDEX_URL", "https://publicvpnlist.com/")
-    max_countries = _env_int("PUBLICVPNLIST_MAX_COUNTRIES", 0)
-    per_country_limit = _env_int("PUBLICVPNLIST_PER_COUNTRY_LIMIT", 20)
-    max_downloads = _env_int("PUBLICVPNLIST_MAX_DOWNLOADS", 0)
-    require_real = _env_bool("PUBLICVPNLIST_REQUIRE_REAL_DOWNLOAD", True)
+    max_countries = _env_int("PUBLICVPNLIST_MAX_COUNTRIES", 5)
+    per_country_limit = _env_int("PUBLICVPNLIST_PER_COUNTRY_LIMIT", 10)
+    max_downloads = _env_int("PUBLICVPNLIST_MAX_DOWNLOADS", 20)
+    require_real = _env_bool("PUBLICVPNLIST_REQUIRE_REAL_DOWNLOAD", False)
     min_speed = _env_int("PUBLICVPNLIST_MIN_SPEED", 0)
     max_latency = _env_int("PUBLICVPNLIST_MAX_LATENCY", 0)
     min_score = _env_int("PUBLICVPNLIST_MIN_SCORE", 0)
@@ -282,6 +282,7 @@ def fetch_publicvpnlist_nodes() -> list[dict[str, Any]]:
 
             # 真实下载 .ovpn（可选）
             config_text = None
+            remote_proto = (node.get("proto", "tcp") or "tcp").lower()
             if require_real:
                 detail_url = f"https://publicvpnlist.com/download/{node['data_id']}/"
                 token = _get_download_token(node["data_id"], detail_url)
