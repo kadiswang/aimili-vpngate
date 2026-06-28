@@ -1605,6 +1605,20 @@ def test_node_by_id(node_id: str) -> dict[str, Any]:
         latency = vpn_utils.ping_latency_ms(h, p, fallback_ping)
         ok = latency > 0
         message = "端口开放，节点可达" if ok else "端口关闭或不可达"
+        enriched = {
+            "id": node_id,
+            "ip": h,
+            "remote_host": h,
+            "remote_port": p,
+            "owner": "",
+            "asn": "",
+            "as_name": "",
+            "location": "",
+            "ip_type": "",
+            "quality": "",
+        }
+        if ok:
+            vpn_utils.enrich_ip_info([enriched])
         with lock:
             nodes = read_nodes()
             node = next((item for item in nodes if item.get("id") == node_id), None)
@@ -1613,6 +1627,13 @@ def test_node_by_id(node_id: str) -> dict[str, Any]:
                 node["probe_status"] = "available" if ok else "unavailable"
                 node["probe_message"] = message
                 node["probed_at"] = time.time()
+                if ok:
+                    node["owner"] = enriched["owner"]
+                    node["asn"] = enriched["asn"]
+                    node["as_name"] = enriched["as_name"]
+                    node["location"] = enriched["location"]
+                    node["ip_type"] = enriched["ip_type"]
+                    node["quality"] = enriched["quality"]
                 sorted_nodes = sort_all_nodes(nodes)
                 write_json(NODES_FILE, sorted_nodes)
                 res = next((item for item in sorted_nodes if item.get("id") == node_id), node)
@@ -1623,6 +1644,12 @@ def test_node_by_id(node_id: str) -> dict[str, Any]:
             "probe_status": "available" if ok else "unavailable",
             "probe_message": message,
             "probed_at": time.time(),
+            "owner": enriched["owner"],
+            "asn": enriched["asn"],
+            "as_name": enriched["as_name"],
+            "location": enriched["location"],
+            "ip_type": enriched["ip_type"],
+            "quality": enriched["quality"],
         }
 
     temp_path = test_config_path(node_id)
@@ -1702,18 +1729,32 @@ def test_multiple_nodes(node_ids: list[str]) -> list[dict[str, Any]]:
             latency = vpn_utils.ping_latency_ms(h, p, fallback_ping)
             ok = latency > 0
             message = "端口开放，节点可达" if ok else "端口关闭或不可达"
-            return {
+            enriched = {
                 "id": node_id,
-                "latency_ms": latency,
-                "probe_status": "available" if ok else "unavailable",
-                "probe_message": message,
-                "probed_at": time.time(),
+                "ip": h,
+                "remote_host": h,
+                "remote_port": p,
                 "owner": "",
                 "asn": "",
                 "as_name": "",
                 "location": "",
                 "ip_type": "",
                 "quality": "",
+            }
+            if ok:
+                vpn_utils.enrich_ip_info([enriched])
+            return {
+                "id": node_id,
+                "latency_ms": latency,
+                "probe_status": "available" if ok else "unavailable",
+                "probe_message": message,
+                "probed_at": time.time(),
+                "owner": enriched["owner"],
+                "asn": enriched["asn"],
+                "as_name": enriched["as_name"],
+                "location": enriched["location"],
+                "ip_type": enriched["ip_type"],
+                "quality": enriched["quality"],
             }
 
         temp_path = test_config_path(node_id)
