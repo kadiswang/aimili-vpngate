@@ -2195,6 +2195,7 @@ def maintain_valid_nodes(force: bool = False) -> str:
                         "location",
                         "ip_type",
                         "quality",
+                        "fraud_score",
                     ]:
                         if previous.get(key) not in (None, ""):
                             cand[key] = previous.get(key)
@@ -4144,30 +4145,36 @@ async function fetchWithCsrf(url, options = {}) {
 
 const $=id=>document.getElementById(id);
 
-// IP Health Score: 0-100 based on availability, IP type, latency, quality
+// IP Health Score: 0-100 based on availability, IP type, latency, quality, fraud score
 function getHealthScore(n) {
   if (!n) return 0;
   let score = 0;
-  // Availability: 40 pts
-  if (n.probe_status === "available" || n.active) score += 40;
-  else if (n.probe_status === "not_checked" || n.probe_status === "testing") score += 20;
-  // IP type: residential 25, mobile 20, hosting 10
-  if (n.ip_type === "residential") score += 25;
-  else if (n.ip_type === "mobile") score += 20;
-  else if (n.ip_type === "hosting") score += 10;
-  // Latency: <100ms=20, 100-300=15, 300-500=10, >500=5
+  // Availability: 35 pts
+  if (n.probe_status === "available" || n.active) score += 35;
+  else if (n.probe_status === "not_checked" || n.probe_status === "testing") score += 18;
+  // IP type: residential 22, mobile 18, hosting 8
+  if (n.ip_type === "residential") score += 22;
+  else if (n.ip_type === "mobile") score += 18;
+  else if (n.ip_type === "hosting") score += 8;
+  // Latency: <100ms=15, 100-300=12, 300-500=8, >500=4
   const lat = parseInt(n.latency_ms) || 0;
   if (lat > 0) {
-    if (lat < 100) score += 20;
-    else if (lat < 300) score += 15;
-    else if (lat < 500) score += 10;
-    else score += 5;
+    if (lat < 100) score += 15;
+    else if (lat < 300) score += 12;
+    else if (lat < 500) score += 8;
+    else score += 4;
   }
-  // Quality from vpngate: Excellent=15, Good=10, Average=5
+  // Quality from vpngate: Excellent=10, Good=7, Average=4
   const q = (n.quality || "").toLowerCase();
-  if (q.includes("excellent") || q.includes("极好")) score += 15;
-  else if (q.includes("good") || q.includes("好")) score += 10;
-  else if (q.includes("average") || q.includes("一般")) score += 5;
+  if (q.includes("excellent") || q.includes("极好")) score += 10;
+  else if (q.includes("good") || q.includes("好")) score += 7;
+  else if (q.includes("average") || q.includes("一般")) score += 4;
+  // Fraud score: lower is better, max 10 pts
+  const fraud = parseInt(n.fraud_score) || 0;
+  if (fraud <= 10) score += 10;
+  else if (fraud <= 30) score += 8;
+  else if (fraud <= 50) score += 5;
+  else if (fraud <= 70) score += 2;
   return Math.min(score, 100);
 }
 

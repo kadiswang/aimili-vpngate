@@ -405,6 +405,7 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
             node["location"] = cached.get("location", "")
             node["ip_type"] = cached.get("ip_type", "")
             node["quality"] = cached.get("quality", "")
+            node["fraud_score"] = cached.get("fraud_score", 0)
         else:
             if ip not in ips_to_query:
                 ips_to_query.append(ip)
@@ -415,7 +416,7 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
     # 2. Perform HTTP query outside lock
     new_entries = {}
     chunk_size = 100
-    api_url = "http://ip-api.com/batch?lang=zh-CN&fields=status,message,query,country,regionName,city,isp,org,as,asname,proxy,hosting,mobile"
+    api_url = "http://ip-api.com/batch?lang=zh-CN&fields=status,message,query,country,regionName,city,isp,org,as,asname,proxy,hosting,mobile,fraudScore"
     for i in range(0, len(ips_to_query), chunk_size):
         chunk = ips_to_query[i : i + chunk_size]
         payload = json.dumps(chunk).encode("utf-8")
@@ -463,6 +464,7 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
                             "location": loc,
                             "ip_type": ip_type,
                             "quality": quality,
+                            "fraud_score": item.get("fraudScore") or 0,
                             "cached_at": now,
                         }
                 break
@@ -493,6 +495,7 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
             node["location"] = cached.get("location", "")
             node["ip_type"] = cached.get("ip_type", "")
             node["quality"] = cached.get("quality", "")
+            node["fraud_score"] = cached.get("fraud_score", 0)
 
 
 def diagnose_api_failure(api_url: str = "https://www.vpngate.net/api/iphone/") -> tuple[int, str]:
