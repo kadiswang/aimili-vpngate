@@ -20,13 +20,17 @@ ip_cache_lock = threading.RLock()
 
 COUNTRY_TRANSLATIONS = {
     "Japan": "日本",
+    "South Korea": "韩国",
     "Korea Republic of": "韩国",
     "Korea": "韩国",
     "Republic of Korea": "韩国",
     "Thailand": "泰国",
     "United States": "美国",
+    "USA": "美国",
     "United Kingdom": "英国",
+    "UK": "英国",
     "Russian Federation": "俄罗斯",
+    "Russia": "俄罗斯",
     "Russian": "俄罗斯",
     "Viet Nam": "越南",
     "Vietnam": "越南",
@@ -80,10 +84,15 @@ COUNTRY_TRANSLATIONS = {
     "Israel": "以色列",
     "United Arab Emirates": "阿联酋",
     "UAE": "阿联酋",
+    "Emirates": "阿联酋",
     "Macao": "澳门",
     "Macau": "澳门",
     "Iceland": "冰岛",
     "Luxembourg": "卢森堡",
+    "Grenada": "格林纳达",
+    "Myanmar": "缅甸",
+    "Lao People's Democratic Republic": "老挝",
+    "Laos": "老挝",
 }
 
 def _safe_int(val: Any, default: int = 0) -> int:
