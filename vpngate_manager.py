@@ -3464,6 +3464,9 @@ INDEX_HTML = r"""<!doctype html>
       <option value="poor">较差 (30+)</option>
       <option value="critical">极差 (0-29)</option>
     </select>
+    <span id="node_count_label" style="font-size: 13px; color: var(--text-secondary); align-self: center; padding: 0 8px; white-space: nowrap;">
+      共 <strong id="node_count_total" style="color: var(--text-primary); font-weight: 600;">0</strong> 个节点
+    </span>
     <button id="btn_batch_test" class="toolbar-btn" type="button" onclick="batchTestFiltered()" style="height: 42px; gap: 6px; background: var(--primary); color: #fff; border: none;">
       <svg xmlns="http://www.w3.org/2000/svg" style="width:16px; height:16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -4249,6 +4252,7 @@ function render(){
   $("page_start").textContent = shown.length > 0 ? startIndex + 1 : 0;
   $("page_end").textContent = endIndex;
   $("filtered_count").textContent = shown.length;
+  $("node_count_total").textContent = shown.length;
   $("current_page_val").textContent = currentPage;
   $("total_pages_val").textContent = totalPages;
   
