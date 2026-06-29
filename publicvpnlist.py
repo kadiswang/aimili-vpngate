@@ -126,32 +126,12 @@ def _parse_nodes_from_html(html: str, country_url: str) -> list[dict[str, Any]]:
 
 
 def _get_download_token(data_id: str, detail_url: str) -> str | None:
-    """HTTP-first 链路：详情页 → test_server.php → get_token.php"""
+    """获取下载 token：详情页 → get_token.php（test_server.php 非必需，跳过以提速）"""
     base_url = "https://publicvpnlist.com"
-    # 1. 访问详情页建立会话（不需要真正下载）
     html = _fetch_html(detail_url, timeout=15)
     if not html:
         return None
 
-    # 2. 调用 test_server.php
-    test_url = f"{base_url}/test_server.php?id={data_id}"
-    test_raw = _fetch_html(test_url, timeout=15, referer=detail_url)
-    if not test_raw:
-        return None
-
-    try:
-        test_data = json.loads(test_raw)
-    except json.JSONDecodeError:
-        return None
-
-    # 只要 ok=true 就继续尝试下载（status 可能是 "ok"/"unknown"/"inconclusive"）
-    if not test_data.get("ok"):
-        print(f"[PublicVPNList] test_server 不可用 id={data_id}: {test_data.get('message', test_data.get('error', ''))}", flush=True)
-        return None
-    if test_data.get("error"):
-        print(f"[PublicVPNList] test_server 返回警告 id={data_id}: {test_data.get('error')}，继续尝试下载", flush=True)
-
-    # 3. 获取 token
     token_url = f"{base_url}/get_token.php?id={data_id}"
     token_raw = _fetch_html(token_url, timeout=15, referer=detail_url)
     if not token_raw:
