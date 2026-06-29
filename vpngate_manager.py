@@ -1935,7 +1935,8 @@ def connect_node(node_id: str) -> str:
 
         # 按需下载：publicvpnlist 节点无配置时先下载 ovpn
         if node.get("source") == "publicvpnlist" and not node.get("config_text"):
-            data_id = node.get("data_id")
+            # 优先用 data_id 字段，否则从节点 ID 解析（格式 pvl_{data_id}_{ip}_{port}_{proto}）
+            data_id = node.get("data_id") or (node_id.split("_", 3)[1] if node_id.startswith("pvl_") and "_" in node_id else None)
             if data_id:
                 set_state(active_node_latency="下载配置", last_check_message=f"正在从 PublicVPNList 下载配置文件...")
                 print(f"[连接] 按需下载节点配置: {data_id}", flush=True)
@@ -1955,12 +1956,12 @@ def connect_node(node_id: str) -> str:
                         for item in nodes:
                             if item.get("id") == node_id:
                                 item.update(node)
-                        write_nodes(nodes)
+                        write_json(NODES_FILE, nodes)
                     print(f"[连接] 配置下载完成: {dl_result['remote_host']}:{dl_result['remote_port']}", flush=True)
                 else:
                     raise RuntimeError(f"无法下载节点配置，该节点可能已下线")
             else:
-                raise RuntimeError("节点缺少 data_id，无法下载配置")
+                raise RuntimeError("无法解析节点 data_id，无法下载配置")
 
         ui_cfg = load_ui_config()
         validate_node_allowed_by_routing(node, ui_cfg)
