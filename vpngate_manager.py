@@ -1932,7 +1932,36 @@ def connect_node(node_id: str) -> str:
         node = next((item for item in nodes if item.get("id") == node_id), None)
         if not node:
             raise ValueError(f"Node not found: {node_id}")
-        
+
+        # 按需下载：publicvpnlist 节点无配置时先下载 ovpn
+        if node.get("source") == "publicvpnlist" and not node.get("config_text"):
+            data_id = node.get("data_id")
+            if data_id:
+                set_state(active_node_latency="下载配置", last_check_message=f"正在从 PublicVPNList 下载配置文件...")
+                print(f"[连接] 按需下载节点配置: {data_id}", flush=True)
+                import publicvpnlist as pvl_module
+                dl_result = pvl_module.download_node_config(data_id)
+                if dl_result:
+                    node["config_text"] = dl_result["config_text"]
+                    node["remote_host"] = dl_result["remote_host"]
+                    node["remote_port"] = dl_result["remote_port"]
+                    node["ip"] = dl_result["remote_host"]
+                    node["proto"] = dl_result["proto"]
+                    config_dir = Path(node.get("config_file", "")).parent or (DATA_DIR / "configs")
+                    config_dir.mkdir(exist_ok=True, parents=True)
+                    node["config_file"] = str(config_dir / f"{node_id}.ovpn")
+                    (config_dir / f"{node_id}.ovpn").write_text(dl_result["config_text"], encoding="utf-8")
+                    with lock:
+                        for item in nodes:
+                            if item.get("id") == node_id:
+                                item.update(node)
+                        write_nodes(nodes)
+                    print(f"[连接] 配置下载完成: {dl_result['remote_host']}:{dl_result['remote_port']}", flush=True)
+                else:
+                    raise RuntimeError(f"无法下载节点配置，该节点可能已下线")
+            else:
+                raise RuntimeError("节点缺少 data_id，无法下载配置")
+
         ui_cfg = load_ui_config()
         validate_node_allowed_by_routing(node, ui_cfg)
         ui_cfg["connection_enabled"] = True
@@ -4588,20 +4617,6 @@ async function connectNode(id){
   startConnectionPolling();
   
   try {
-    const node = nodes.find(n => n.id === id);
-    const needsDownload = node && node.source === "publicvpnlist" && (!node.has_config);
-    if (needsDownload) {
-      state.last_check_message = "正在下载 OpenVPN 配置文件...";
-      render();
-      const dlRes = await fetchWithCsrf("./api/download_ovpn?id=" + encodeURIComponent(id));
-      if (!dlRes.ok) {
-        throw new Error(dlRes.error || "下载配置失败");
-      }
-      state.last_check_message = "配置下载完成，正在连接...";
-      render();
-      await load();
-    }
-
     const r = await fetchWithCsrf("./api/connect",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
@@ -6397,42 +6412,6 @@ class Handler(BaseHTTPRequestHandler):
                         proxy_error=result.get("error", "未知错误")
                     )
                 self.send_json(result)
-            except Exception as exc:
-                self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
-        elif effective_path.startswith("/api/download_ovpn"):
-            qs = urllib.parse.urlparse(self.path).query
-            params = urllib.parse.parse_qs(qs)
-            node_id = str((params.get("id") or [""])[0]).strip()
-            if not node_id or not node_id.startswith("pvl_"):
-                self.send_json({"ok": False, "error": "需提供有效的 publicvpnlist 节点 id"}, HTTPStatus.BAD_REQUEST)
-                return
-            try:
-                pd = node_id.split("_", 3)
-                if len(pd) < 3:
-                    raise ValueError("invalid node id format")
-                data_id = pd[1]
-                print(f"[下载配置] 开始按需下载节点 {data_id}", flush=True)
-                import publicvpnlist as pvl_module
-                result = pvl_module.download_node_config(data_id)
-                if not result:
-                    self.send_json({"ok": False, "error": "无法下载配置，节点可能已下线"}, HTTPStatus.INTERNAL_SERVER_ERROR)
-                    return
-                with lock:
-                    nodes = read_nodes()
-                    for n in nodes:
-                        if n.get("id") == node_id:
-                            n["config_text"] = result["config_text"]
-                            n["remote_host"] = result["remote_host"]
-                            n["remote_port"] = result["remote_port"]
-                            n["ip"] = result["remote_host"]
-                            n["proto"] = result["proto"]
-                            config_dir = Path(n.get("config_file", "")).parent or (DATA_DIR / "configs")
-                            config_dir.mkdir(exist_ok=True, parents=True)
-                            n["config_file"] = str(config_dir / f"{node_id}.ovpn")
-                            (config_dir / f"{node_id}.ovpn").write_text(result["config_text"], encoding="utf-8")
-                            write_nodes(nodes)
-                            break
-                self.send_json({"ok": True, "node_id": node_id, "remote_host": result["remote_host"]})
             except Exception as exc:
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
         else:
