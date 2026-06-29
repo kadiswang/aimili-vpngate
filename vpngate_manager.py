@@ -3544,6 +3544,12 @@ INDEX_HTML = r"""<!doctype html>
     .latency-good { background: var(--success-bg); color: #059669; }
     .latency-medium { background: var(--warning-bg); color: #d97706; }
     .latency-poor { background: var(--danger-bg); color: #dc2626; }
+    .health-badge { font-weight: 600; font-size: 12px; padding: 2px 6px; border-radius: 4px; display: inline-block; }
+    .health-excellent { background: rgba(16, 185, 129, 0.15); color: #059669; }
+    .health-good { background: rgba(59, 130, 246, 0.15); color: #2563eb; }
+    .health-fair { background: rgba(245, 158, 11, 0.15); color: #d97706; }
+    .health-poor { background: rgba(239, 68, 68, 0.15); color: #dc2626; }
+    .health-critical { background: rgba(127, 29, 29, 0.15); color: #991b1b; }
     @media (max-width: 576px) { .vps-links { grid-template-columns: 1fr; } }
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     @keyframes modalFadeIn { from { transform: scale(0.97); opacity: 0; } to { transform: scale(1); opacity: 1; } }
@@ -3677,6 +3683,7 @@ INDEX_HTML = r"""<!doctype html>
               <th>物理位置</th>
               <th style="width: 80px;">IP 类型</th>
               <th style="width: 80px;">延迟</th>
+              <th style="width: 80px;">健康度</th>
               <th style="width: 160px;">操作</th>
             </tr>
           </thead>
@@ -3706,6 +3713,14 @@ INDEX_HTML = r"""<!doctype html>
       <option value="all">所有来源</option>
       <option value="vpngate">VPNGate</option>
       <option value="publicvpnlist">PublicVPNList</option>
+    </select>
+    <select id="health_filter">
+      <option value="all">全部健康度</option>
+      <option value="excellent">优秀 (90+)</option>
+      <option value="good">良好 (70+)</option>
+      <option value="fair">一般 (50+)</option>
+      <option value="poor">较差 (30+)</option>
+      <option value="critical">极差 (0-29)</option>
     </select>
     <span id="node_count_label" style="font-size: 13px; color: var(--text-secondary); align-self: center; padding: 0 8px; white-space: nowrap;">
       共 <strong id="node_count_total" style="color: var(--text-primary); font-weight: 600;">0</strong> 个节点
@@ -3767,6 +3782,7 @@ INDEX_HTML = r"""<!doctype html>
             <th>运营主体 / ISP</th>
             <th style="width: 80px;">IP 类型</th>
             <th style="width: 80px;">延迟</th>
+            <th style="width: 80px;">健康度</th>
             <th style="width: 160px;">操作</th>
           </tr>
         </thead>
@@ -4127,6 +4143,49 @@ async function fetchWithCsrf(url, options = {}) {
 }
 
 const $=id=>document.getElementById(id);
+
+// IP Health Score: 0-100 based on availability, IP type, latency, quality
+function getHealthScore(n) {
+  if (!n) return 0;
+  let score = 0;
+  // Availability: 40 pts
+  if (n.probe_status === "available" || n.active) score += 40;
+  else if (n.probe_status === "not_checked" || n.probe_status === "testing") score += 20;
+  // IP type: residential 25, mobile 20, hosting 10
+  if (n.ip_type === "residential") score += 25;
+  else if (n.ip_type === "mobile") score += 20;
+  else if (n.ip_type === "hosting") score += 10;
+  // Latency: <100ms=20, 100-300=15, 300-500=10, >500=5
+  const lat = parseInt(n.latency_ms) || 0;
+  if (lat > 0) {
+    if (lat < 100) score += 20;
+    else if (lat < 300) score += 15;
+    else if (lat < 500) score += 10;
+    else score += 5;
+  }
+  // Quality from vpngate: Excellent=15, Good=10, Average=5
+  const q = (n.quality || "").toLowerCase();
+  if (q.includes("excellent") || q.includes("极好")) score += 15;
+  else if (q.includes("good") || q.includes("好")) score += 10;
+  else if (q.includes("average") || q.includes("一般")) score += 5;
+  return Math.min(score, 100);
+}
+
+function getHealthClass(score) {
+  if (score >= 90) return "health-excellent";
+  if (score >= 70) return "health-good";
+  if (score >= 50) return "health-fair";
+  if (score >= 30) return "health-poor";
+  return "health-critical";
+}
+
+function getHealthLabel(score) {
+  if (score >= 90) return "优秀";
+  if (score >= 70) return "良好";
+  if (score >= 50) return "一般";
+  if (score >= 30) return "较差";
+  return "极差";
+}
 const esc=s=>String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
 const base=p=>(p||"").split(/[\\/]/).pop();
 function time(ts){return ts?new Date(ts*1000).toLocaleString():"从未"}
@@ -4195,6 +4254,7 @@ function getFilteredNodes() {
   const selectedIpType = $("ip_type_filter").value;
   const selectedStatus = $("status_filter").value;
   const selectedSource = $("source_filter").value;
+  const selectedHealth = $("health_filter").value;
   return nodes.filter(n => {
     if (!n) return false;
     if (selectedCountry && translateCountry(n.country) !== selectedCountry) {
@@ -4217,6 +4277,14 @@ function getFilteredNodes() {
     if (selectedSource && selectedSource !== "all") {
       const nodeSource = n.source === "publicvpnlist" ? "publicvpnlist" : "vpngate";
       if (nodeSource !== selectedSource) {
+        return false;
+      }
+    }
+    if (selectedHealth && selectedHealth !== "all") {
+      const score = getHealthScore(n);
+      const minScores = { excellent: 90, good: 70, fair: 50, poor: 30, critical: 0 };
+      const maxScores = { excellent: 100, good: 89, fair: 49, poor: 29, critical: 29 };
+      if (score < minScores[selectedHealth] || score > maxScores[selectedHealth]) {
         return false;
       }
     }
@@ -4434,6 +4502,9 @@ function render(){
         <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: table-cell !important;" title="${esc(n.owner||n.as_name||"-")}">${esc(n.owner||n.as_name||"-")}</td>
         <td style="white-space: nowrap; max-width: 110px; overflow: hidden; text-overflow: ellipsis; display: table-cell !important;" title="${esc(translateIpType(n.ip_type))}">${esc(translateIpType(n.ip_type))}</td>
         <td style="white-space: nowrap; display: table-cell !important;">${latencyText}</td>
+        <td style="white-space: nowrap; display: table-cell !important;">
+          <span class="health-badge ${getHealthClass(getHealthScore(n))}">${getHealthScore(n)}</span>
+        </td>
         <td style="display: table-cell !important;">
           <div class="table-actions">
             ${favBtn}
@@ -4510,7 +4581,7 @@ function renderOverviewNodes(activeNode) {
   label.textContent = parts.join(" + ") + " (" + filtered.length + " 个节点)";
 
   if (filtered.length === 0) {
-    container.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-secondary);padding:30px 0;">暂无符合条件的节点</td></tr>';
+    container.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-secondary);padding:30px 0;">暂无符合条件的节点</td></tr>';
     return;
   }
 
@@ -4532,6 +4603,7 @@ function renderOverviewNodes(activeNode) {
       '<td style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:table-cell!important;" title="' + esc(displayLocation) + '">' + esc(displayLocation) + '</td>' +
       '<td style="white-space:nowrap;display:table-cell!important;">' + esc(translateIpType(n.ip_type)) + '</td>' +
       '<td style="white-space:nowrap;display:table-cell!important;">' + latencyText + '</td>' +
+      '<td style="white-space:nowrap;display:table-cell!important;"><span class="health-badge ' + getHealthClass(getHealthScore(n)) + '">' + getHealthScore(n) + '</span></td>' +
       '<td style="display:table-cell!important;">' + connectBtn + '</td>' +
       '</tr>';
   }).join("");
@@ -4790,6 +4862,7 @@ $("country_filter").onchange=()=>{ currentPage = 1; render(); };
 $("ip_type_filter").onchange=()=>{ currentPage = 1; render(); };
 $("status_filter").onchange=()=>{ currentPage = 1; render(); };
 $("source_filter").onchange=()=>{ currentPage = 1; render(); };
+$("health_filter").onchange=()=>{ currentPage = 1; render(); };
 
 function toggleSettingsSubmenu() {
   const sub = $("settings_submenu");
