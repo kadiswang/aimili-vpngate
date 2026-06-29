@@ -4324,11 +4324,12 @@ function render(){
       const testBtn = `<button class="test-btn" data-node-id="${esc(n.id)}" ${isTesting ? 'disabled' : ''} onclick="testNode(this, '${esc(n.id)}', event)">${testBtnText}</button>`;
       
       // Connect button is disabled if probe status is "unavailable" and not already active, or if we are already connecting
-      // Connect button is disabled if probe status is "unavailable" and not already active, or if we are already connecting
       const isUnavailable = n.probe_status === "unavailable";
+      const hasNoConfig = !n.has_config && n.source === "publicvpnlist";
+      const connectDisabled = isUnavailable || state.is_connecting || hasNoConfig;
       const connectBtn = isCurrentlyActive 
         ? `<button class="connect-btn" disabled style="background: var(--success-gradient); color: white; cursor: default; opacity: 1;">已连接</button>`
-        : `<button class="connect-btn" ${(isUnavailable || state.is_connecting) ? 'disabled style="opacity:0.3; cursor:not-allowed;"' : ''} onclick="connectNode('${esc(n.id)}')">切换</button>`;
+        : `<button class="connect-btn" ${connectDisabled ? 'disabled style="opacity:0.3; cursor:not-allowed;"' : ''} onclick="connectNode('${esc(n.id)}')" title="${hasNoConfig ? '该节点缺少 OpenVPN 配置文件，无法连接' : ''}">${hasNoConfig ? '无配置' : '切换'}</button>`;
       
       const favoriteIds = Array.isArray(state.favorite_node_ids) ? state.favorite_node_ids : [];
       const isFav = favoriteIds.includes(n.id);
@@ -5816,6 +5817,7 @@ class Handler(BaseHTTPRequestHandler):
                 ct = stripped.get("config_text", "")
                 if len(ct) > MAX_CONFIG_TEXT_LENGTH:
                     stripped["config_text_truncated"] = True
+                stripped["has_config"] = bool(ct.strip())
                 if "config_text" in stripped:
                     del stripped["config_text"]
                 stripped_nodes.append(stripped)
