@@ -4671,14 +4671,47 @@ function switchPage(name) {
 
 async function doRefreshNodes(){ 
   const el=$("sidebar_refresh");
+  if (el.dataset.refreshing === "true") return;
+  el.dataset.refreshing = "true";
   el.style.pointerEvents="none"; 
   el.style.opacity="0.6"; 
-  try{await fetchWithCsrf("./api/refresh_nodes",{method:"POST"}); await load();} 
-  catch(e){}
-  setTimeout(()=>{
-    el.style.pointerEvents=""; 
-    el.style.opacity="";
-  }, 3000);
+  el.innerHTML = `<svg style="animation: spin 1s linear infinite;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> 更新中...`;
+  try{
+    const beforeFetchAt = state.last_fetch_at || 0;
+    const resp = await fetchWithCsrf("./api/refresh_nodes",{method:"POST"});
+    if (resp.ok) {
+      const startTime = Date.now();
+      while (Date.now() - startTime < 300000) {
+        await new Promise(r => setTimeout(r, 3000));
+        try {
+          const status = await fetchWithCsrf("./api/status");
+          if (status) {
+            // 检测到新的拉取完成
+            if ((status.last_fetch_at || 0) > beforeFetchAt && status.last_fetch_status === "ok") {
+              await load();
+              el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> 更新节点`;
+              el.dataset.refreshing = "false";
+              el.style.pointerEvents=""; 
+              el.style.opacity="";
+              return;
+            }
+            // 拉取失败
+            if ((status.last_fetch_at || 0) > beforeFetchAt && status.last_fetch_status === "error") {
+              el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> 更新节点`;
+              el.dataset.refreshing = "false";
+              el.style.pointerEvents=""; 
+              el.style.opacity="";
+              return;
+            }
+          }
+        } catch(e) {}
+      }
+    }
+  } catch(e){}
+  el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> 更新节点`;
+  el.dataset.refreshing = "false";
+  el.style.pointerEvents=""; 
+  el.style.opacity="";
 };
 $("btn_test_proxy").onclick = async () => {
   const btn = $("btn_test_proxy");
