@@ -2067,47 +2067,49 @@ def connect_node(node_id: str) -> str:
 
 
 def _batch_download_pvl_configs(nodes_without_config: list[dict[str, Any]]) -> None:
-    """后台批量下载 publicvpnlist 节点的 ovpn 配置。"""
+    """后台并行下载 publicvpnlist 节点的 ovpn 配置。"""
     import publicvpnlist as pvl_module
-    downloaded = 0
-    failed = 0
-    for node in nodes_without_config:
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    def _download_one(node: dict[str, Any]) -> bool:
         node_id = node.get("id", "")
         if not node_id:
-            continue
+            return False
         data_id = node.get("data_id") or (node_id.split("_", 3)[1] if node_id.startswith("pvl_") and "_" in node_id else None)
         if not data_id:
-            failed += 1
-            continue
+            return False
         try:
             result = pvl_module.download_node_config(data_id)
-            if result:
-                with lock:
-                    current = read_nodes()
-                    for n in current:
-                        if n.get("id") == node_id:
-                            n["config_text"] = result["config_text"]
-                            n["remote_host"] = result["remote_host"]
-                            n["remote_port"] = result["remote_port"]
-                            n["ip"] = result["remote_host"]
-                            n["proto"] = result["proto"]
-                            config_dir = Path(n.get("config_file", "")).parent or (DATA_DIR / "configs")
-                            config_dir.mkdir(exist_ok=True, parents=True)
-                            n["config_file"] = str(config_dir / f"{node_id}.ovpn")
-                            (config_dir / f"{node_id}.ovpn").write_text(result["config_text"], encoding="utf-8")
-                            break
-                    write_json(NODES_FILE, current)
-                downloaded += 1
-                print(f"[批量下载] {node_id}: OK ({result['remote_host']}:{result['remote_port']})", flush=True)
-            else:
-                failed += 1
+            if not result:
                 print(f"[批量下载] {node_id}: 下载失败", flush=True)
+                return False
+            with lock:
+                current = read_nodes()
+                for n in current:
+                    if n.get("id") == node_id:
+                        n["config_text"] = result["config_text"]
+                        n["remote_host"] = result["remote_host"]
+                        n["remote_port"] = result["remote_port"]
+                        n["ip"] = result["remote_host"]
+                        n["proto"] = result["proto"]
+                        config_dir = Path(n.get("config_file", "")).parent or (DATA_DIR / "configs")
+                        config_dir.mkdir(exist_ok=True, parents=True)
+                        n["config_file"] = str(config_dir / f"{node_id}.ovpn")
+                        (config_dir / f"{node_id}.ovpn").write_text(result["config_text"], encoding="utf-8")
+                        break
+                write_json(NODES_FILE, current)
+            print(f"[批量下载] {node_id}: OK ({result['remote_host']}:{result['remote_port']})", flush=True)
+            return True
         except Exception as e:
-            failed += 1
             print(f"[批量下载] {node_id}: 异常 - {e}", flush=True)
-        time.sleep(0.5)  # 避免请求过快
+            return False
 
-    print(f"[批量下载] 完成: 成功 {downloaded}, 失败 {failed}", flush=True)
+    print(f"[批量下载] 启动 {len(nodes_without_config)} 个 PublicVPNList 节点的并行下载（最大 10 并发）", flush=True)
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(_download_one, n): n for n in nodes_without_config}
+        ok = sum(1 for f in as_completed(futures) if f.result())
+        fail = len(futures) - ok
+    print(f"[批量下载] 完成: 成功 {ok}, 失败 {fail}", flush=True)
 
 
 def maintain_valid_nodes(force: bool = False) -> str:
@@ -3705,6 +3707,9 @@ INDEX_HTML = r"""<!doctype html>
       <option value="vpngate">VPNGate</option>
       <option value="publicvpnlist">PublicVPNList</option>
     </select>
+    <span id="node_count_label" style="font-size: 13px; color: var(--text-secondary); align-self: center; padding: 0 8px; white-space: nowrap;">
+      共 <strong id="node_count_total" style="color: var(--text-primary); font-weight: 600;">0</strong> 个节点
+    </span>
     <button id="btn_batch_test" class="toolbar-btn" type="button" onclick="batchTestFiltered()" style="height: 42px; gap: 6px; background: var(--primary); color: #fff; border: none;">
       <svg xmlns="http://www.w3.org/2000/svg" style="width:16px; height:16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -4443,6 +4448,7 @@ function render(){
   $("page_start").textContent = shown.length > 0 ? startIndex + 1 : 0;
   $("page_end").textContent = endIndex;
   $("filtered_count").textContent = shown.length;
+  $("node_count_total").textContent = shown.length;
   $("current_page_val").textContent = currentPage;
   $("total_pages_val").textContent = totalPages;
   
