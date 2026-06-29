@@ -2065,6 +2065,51 @@ def connect_node(node_id: str) -> str:
         with lock:
             is_connecting = False
 
+
+def _batch_download_pvl_configs(nodes_without_config: list[dict[str, Any]]) -> None:
+    """后台批量下载 publicvpnlist 节点的 ovpn 配置。"""
+    import publicvpnlist as pvl_module
+    downloaded = 0
+    failed = 0
+    for node in nodes_without_config:
+        node_id = node.get("id", "")
+        if not node_id:
+            continue
+        data_id = node.get("data_id") or (node_id.split("_", 3)[1] if node_id.startswith("pvl_") and "_" in node_id else None)
+        if not data_id:
+            failed += 1
+            continue
+        try:
+            result = pvl_module.download_node_config(data_id)
+            if result:
+                with lock:
+                    current = read_nodes()
+                    for n in current:
+                        if n.get("id") == node_id:
+                            n["config_text"] = result["config_text"]
+                            n["remote_host"] = result["remote_host"]
+                            n["remote_port"] = result["remote_port"]
+                            n["ip"] = result["remote_host"]
+                            n["proto"] = result["proto"]
+                            config_dir = Path(n.get("config_file", "")).parent or (DATA_DIR / "configs")
+                            config_dir.mkdir(exist_ok=True, parents=True)
+                            n["config_file"] = str(config_dir / f"{node_id}.ovpn")
+                            (config_dir / f"{node_id}.ovpn").write_text(result["config_text"], encoding="utf-8")
+                            break
+                    write_json(NODES_FILE, current)
+                downloaded += 1
+                print(f"[批量下载] {node_id}: OK ({result['remote_host']}:{result['remote_port']})", flush=True)
+            else:
+                failed += 1
+                print(f"[批量下载] {node_id}: 下载失败", flush=True)
+        except Exception as e:
+            failed += 1
+            print(f"[批量下载] {node_id}: 异常 - {e}", flush=True)
+        time.sleep(0.5)  # 避免请求过快
+
+    print(f"[批量下载] 完成: 成功 {downloaded}, 失败 {failed}", flush=True)
+
+
 def maintain_valid_nodes(force: bool = False) -> str:
     global active_openvpn_process, active_openvpn_node_id, is_connecting
     ensure_dirs()
@@ -2171,6 +2216,16 @@ def maintain_valid_nodes(force: bool = False) -> str:
                         pass
                         
             write_json(NODES_FILE, merged)
+
+        # 后台批量下载 publicvpnlist 节点的 ovpn 配置（非阻塞）
+        pvl_nodes_without_config = [n for n in merged if n.get("source") == "publicvpnlist" and not n.get("config_text")]
+        if pvl_nodes_without_config:
+            print(f"[批量下载] 发现 {len(pvl_nodes_without_config)} 个 PublicVPNList 节点缺少配置，启动后台下载", flush=True)
+            threading.Thread(
+                target=_batch_download_pvl_configs,
+                args=(pvl_nodes_without_config,),
+                daemon=True,
+            ).start()
 
         initial_tested_ids: set[str] = set()
         ui_cfg = load_ui_config()
