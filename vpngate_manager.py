@@ -4323,13 +4323,13 @@ function render(){
       const testBtnText = isTesting ? `${testSpinner}检测中` : '检测';
       const testBtn = `<button class="test-btn" data-node-id="${esc(n.id)}" ${isTesting ? 'disabled' : ''} onclick="testNode(this, '${esc(n.id)}', event)">${testBtnText}</button>`;
       
-      // Connect button is disabled if probe status is "unavailable" and not already active, or if we are already connecting
+      // Connect button: publicvpnlist nodes without config still show switch (triggers lazy download)
       const isUnavailable = n.probe_status === "unavailable";
-      const hasNoConfig = !n.has_config && n.source === "publicvpnlist";
-      const connectDisabled = isUnavailable || state.is_connecting || hasNoConfig;
+      const needsLazyDownload = !n.has_config && n.source === "publicvpnlist";
+      const connectDisabled = isUnavailable || state.is_connecting;
       const connectBtn = isCurrentlyActive 
         ? `<button class="connect-btn" disabled style="background: var(--success-gradient); color: white; cursor: default; opacity: 1;">已连接</button>`
-        : `<button class="connect-btn" ${connectDisabled ? 'disabled style="opacity:0.3; cursor:not-allowed;"' : ''} onclick="connectNode('${esc(n.id)}')" title="${hasNoConfig ? '该节点缺少 OpenVPN 配置文件，无法连接' : ''}">${hasNoConfig ? '无配置' : '切换'}</button>`;
+        : `<button class="connect-btn" ${connectDisabled ? 'disabled style="opacity:0.3; cursor:not-allowed;"' : ''} onclick="connectNode('${esc(n.id)}')" title="${needsLazyDownload ? '将先下载配置文件再切换' : ''}">${needsLazyDownload ? '下载并切换' : '切换'}</button>`;
       
       const favoriteIds = Array.isArray(state.favorite_node_ids) ? state.favorite_node_ids : [];
       const isFav = favoriteIds.includes(n.id);
@@ -4588,6 +4588,20 @@ async function connectNode(id){
   startConnectionPolling();
   
   try {
+    const node = nodes.find(n => n.id === id);
+    const needsDownload = node && node.source === "publicvpnlist" && (!node.has_config);
+    if (needsDownload) {
+      state.last_check_message = "正在下载 OpenVPN 配置文件...";
+      render();
+      const dlRes = await fetchWithCsrf("./api/download_ovpn?id=" + encodeURIComponent(id));
+      if (!dlRes.ok) {
+        throw new Error(dlRes.error || "下载配置失败");
+      }
+      state.last_check_message = "配置下载完成，正在连接...";
+      render();
+      await load();
+    }
+
     const r = await fetchWithCsrf("./api/connect",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
@@ -4605,7 +4619,7 @@ async function connectNode(id){
       return;
     }
   } catch(e) {
-    alert("连接请求错误");
+    alert("连接请求错误: " + (e.message || "未知错误"));
     if (pollInterval) {
       clearInterval(pollInterval);
       pollInterval = null;
@@ -6383,6 +6397,42 @@ class Handler(BaseHTTPRequestHandler):
                         proxy_error=result.get("error", "未知错误")
                     )
                 self.send_json(result)
+            except Exception as exc:
+                self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+        elif effective_path.startswith("/api/download_ovpn"):
+            qs = urllib.parse.urlparse(self.path).query
+            params = urllib.parse.parse_qs(qs)
+            node_id = str((params.get("id") or [""])[0]).strip()
+            if not node_id or not node_id.startswith("pvl_"):
+                self.send_json({"ok": False, "error": "需提供有效的 publicvpnlist 节点 id"}, HTTPStatus.BAD_REQUEST)
+                return
+            try:
+                pd = node_id.split("_", 3)
+                if len(pd) < 3:
+                    raise ValueError("invalid node id format")
+                data_id = pd[1]
+                print(f"[下载配置] 开始按需下载节点 {data_id}", flush=True)
+                import publicvpnlist as pvl_module
+                result = pvl_module.download_node_config(data_id)
+                if not result:
+                    self.send_json({"ok": False, "error": "无法下载配置，节点可能已下线"}, HTTPStatus.INTERNAL_SERVER_ERROR)
+                    return
+                with lock:
+                    nodes = read_nodes()
+                    for n in nodes:
+                        if n.get("id") == node_id:
+                            n["config_text"] = result["config_text"]
+                            n["remote_host"] = result["remote_host"]
+                            n["remote_port"] = result["remote_port"]
+                            n["ip"] = result["remote_host"]
+                            n["proto"] = result["proto"]
+                            config_dir = Path(n.get("config_file", "")).parent or (DATA_DIR / "configs")
+                            config_dir.mkdir(exist_ok=True, parents=True)
+                            n["config_file"] = str(config_dir / f"{node_id}.ovpn")
+                            (config_dir / f"{node_id}.ovpn").write_text(result["config_text"], encoding="utf-8")
+                            write_nodes(nodes)
+                            break
+                self.send_json({"ok": True, "node_id": node_id, "remote_host": result["remote_host"]})
             except Exception as exc:
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
         else:

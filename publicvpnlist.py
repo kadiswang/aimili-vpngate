@@ -8,11 +8,13 @@
     PUBLICVPNLIST_MAX_COUNTRIES       最多抓取国家页数，0 不限制（默认 0）
     PUBLICVPNLIST_PER_COUNTRY_LIMIT   每个国家最多取 N 个节点（默认 20）
     PUBLICVPNLIST_MAX_DOWNLOADS       全局最多下载 .ovpn 数，0 不限制（默认 0）
-    PUBLICVPNLIST_REQUIRE_REAL_DOWNLOAD=1|0  只接受真实下载且 remote 匹配的配置（默认 1）
-    PUBLICVPNLIST_MIN_SPEED           最低速度 Mbps，0 不限制（默认 0）
-    PUBLICVPNLIST_MAX_LATENCY          最高延迟 ms，0 不限制（默认 0）
-    PUBLICVPNLIST_MIN_SCORE            最低 Technical score，0 不限制（默认 0）
-    PUBLICVPNLIST_PROTO                all / tcp / udp（默认 all）
+# 默认不再下载 ovpn，改为切换时按需下载（快扫模式）
+# 要恢复旧行为设置 PUBLICVPNLIST_REQUIRE_REAL_DOWNLOAD=1
+PUBLICVPNLIST_REQUIRE_REAL_DOWNLOAD=1|0  只接受真实下载且 remote 匹配的配置（默认 0）
+PUBLICVPNLIST_MIN_SPEED           最低速度 Mbps，0 不限制（默认 0）
+PUBLICVPNLIST_MAX_LATENCY          最高延迟 ms，0 不限制（默认 0）
+PUBLICVPNLIST_MIN_SCORE            最低 Technical score，0 不限制（默认 0）
+PUBLICVPNLIST_PROTO                all / tcp / udp（默认 all）
 """
 
 from __future__ import annotations
@@ -65,9 +67,11 @@ def _fetch_html(url: str, timeout: int = 15, referer: str | None = None) -> str 
         return None
 
 
-def discover_country_pages(index_url: str, max_countries: int) -> list[str]:
-    """从索引页自动发现国家页链接"""
-    html = _fetch_html(index_url)
+def discover_country_pages(index_url: str | None = None, max_countries: int = 0) -> list[str]:
+    """从国家列表页自动发现国家页链接（默认用 /countries/ 页面，可发现所有国家）"""
+    if index_url is None:
+        index_url = "https://publicvpnlist.com/countries/"
+    html = _fetch_html(index_url, timeout=15)
     if not html:
         return []
 
@@ -157,6 +161,28 @@ def download_ovpn(token: str, referer: str) -> str | None:
         return None
 
 
+def download_node_config(data_id: str) -> dict | None:
+    """按需下载单个节点的 .ovpn 配置（供切换时调用）。
+    返回 {config_text, remote_host, remote_port, proto} 或 None。"""
+    detail_url = f"https://publicvpnlist.com/download/{data_id}/"
+    token = _get_download_token(data_id, detail_url)
+    if not token:
+        return None
+    ovpn_text = download_ovpn(token, detail_url)
+    if not ovpn_text:
+        return None
+    try:
+        host, port, proto = _parse_remote_from_ovpn(ovpn_text, "", "")
+        return {
+            "config_text": ovpn_text,
+            "remote_host": host,
+            "remote_port": port,
+            "proto": proto,
+        }
+    except ValueError:
+        return None
+
+
 def _parse_remote_from_ovpn(text: str, expected_ip: str, expected_port: str) -> tuple[str, int, str]:
     """从 .ovpn 提取 remote host/port/proto。
     
@@ -193,11 +219,11 @@ def fetch_publicvpnlist_nodes() -> list[dict[str, Any]]:
     if not enabled:
         return []
 
-    index_url = _env_str("PUBLICVPNLIST_COUNTRY_INDEX_URL", "https://publicvpnlist.com/")
-    max_countries = _env_int("PUBLICVPNLIST_MAX_COUNTRIES", 5)
-    per_country_limit = _env_int("PUBLICVPNLIST_PER_COUNTRY_LIMIT", 5)
-    max_downloads = _env_int("PUBLICVPNLIST_MAX_DOWNLOADS", 10)
-    require_real = _env_bool("PUBLICVPNLIST_REQUIRE_REAL_DOWNLOAD", True)
+    index_url = _env_str("PUBLICVPNLIST_COUNTRY_INDEX_URL", "https://publicvpnlist.com/countries/")
+    max_countries = _env_int("PUBLICVPNLIST_MAX_COUNTRIES", 0)
+    per_country_limit = _env_int("PUBLICVPNLIST_PER_COUNTRY_LIMIT", 15)
+    max_downloads = _env_int("PUBLICVPNLIST_MAX_DOWNLOADS", 0)
+    require_real = _env_bool("PUBLICVPNLIST_REQUIRE_REAL_DOWNLOAD", False)
     min_speed = _env_int("PUBLICVPNLIST_MIN_SPEED", 0)
     max_latency = _env_int("PUBLICVPNLIST_MAX_LATENCY", 0)
     min_score = _env_int("PUBLICVPNLIST_MIN_SCORE", 0)
@@ -287,6 +313,7 @@ def fetch_publicvpnlist_nodes() -> list[dict[str, Any]]:
 
             entry: dict[str, Any] = {
                 "id": nid,
+                "data_id": node["data_id"],
                 "source": "publicvpnlist",
                 "country": COUNTRY_TRANSLATIONS.get(node["country_name"], node["country_name"]),
                 "country_en": node["country_name"],
