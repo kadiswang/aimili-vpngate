@@ -3620,6 +3620,12 @@ INDEX_HTML = r"""<!doctype html>
       <option value="vpngate">VPNGate</option>
       <option value="publicvpnlist">PublicVPNList</option>
     </select>
+    <button id="btn_batch_test" class="toolbar-btn" type="button" onclick="batchTestFiltered()" style="height: 42px; gap: 6px; background: var(--primary); color: #fff; border: none;">
+      <svg xmlns="http://www.w3.org/2000/svg" style="width:16px; height:16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+      </svg>
+      一键检测
+    </button>
     <button id="btn_favorites" class="toolbar-btn" type="button" onclick="toggleFavoritesView()" style="margin-left: auto; height: 42px; gap: 6px;">
       <svg xmlns="http://www.w3.org/2000/svg" style="width:16px; height:16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.907c.961 0 1.371 1.24.588 1.81l-3.97 2.883a1 1 0 00-.364 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.971-2.883a1 1 0 00-1.175 0l-3.97 2.883c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.364-1.118l-3.97-2.883c-.783-.57-.372-1.81.588-1.81h4.906a1 1 0 00.951-.69l1.519-4.674z" />
@@ -3978,7 +3984,7 @@ INDEX_HTML = r"""<!doctype html>
   </div>
 </div>
 <script>
-let nodes=[], state={}, testingNodeIds = new Set();
+let nodes=[], state={}, testingNodeIds = new Set(), batchTesting = false;
 let currentPage = 1;
 const pageSize = 99999;
 let currentPageNodes = [];
@@ -4312,7 +4318,7 @@ function render(){
       const latencyText = n.latency_ms ? `<span class="latency-val ${latencyClass}">${n.latency_ms} ms</span>` : "-";
       const displayLocation = n.location || translateCountry(n.country) || "-";
       
-      const isTesting = testingNodeIds.has(n.id);
+      const isTesting = testingNodeIds.has(n.id) || batchTesting;
       const testSpinner = `<svg style="animation: spin 1s linear infinite; width: 12px; height: 12px; display: inline-block; margin-right: 4px; vertical-align: middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity="0.2" fill="none"></circle><path d="M4 12a8 8 0 018-8" stroke="currentColor" fill="none"></path></svg>`;
       const testBtnText = isTesting ? `${testSpinner}检测中` : '检测';
       const testBtn = `<button class="test-btn" data-node-id="${esc(n.id)}" ${isTesting ? 'disabled' : ''} onclick="testNode(this, '${esc(n.id)}', event)">${testBtnText}</button>`;
@@ -4358,6 +4364,11 @@ function render(){
   $("btn_prev_page").disabled = currentPage === 1;
   $("btn_next_page").disabled = currentPage === totalPages;
   $("btn_last_page").disabled = currentPage === totalPages;
+
+  const batchBtn = $("btn_batch_test");
+  if (batchBtn && batchTesting) {
+    batchBtn.disabled = true;
+  }
 }
 
 function renderOverviewNodes(activeNode) {
@@ -4470,6 +4481,50 @@ async function testNode(btn, id, event){
   } catch (e) {
   } finally {
     testingNodeIds.delete(id);
+    render();
+  }
+}
+
+async function batchTestFiltered() {
+  const filtered = getFilteredNodes();
+  if (filtered.length === 0) {
+    return;
+  }
+  batchTesting = true;
+  const btn = $("btn_batch_test");
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<svg style="animation: spin 1s linear infinite; width:16px; height:16px; display:inline-block; margin-right:4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity="0.2" fill="none"></circle><path d="M4 12a8 8 0 018-8" stroke="currentColor" fill="none"></path></svg>检测中...';
+  }
+  render();
+  try {
+    const ids = filtered.map(n => n.id);
+    const response = await fetchWithCsrf("./api/test_nodes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids })
+    });
+    if (response.ok && Array.isArray(response.nodes)) {
+      const resultsMap = {};
+      for (const r of response.nodes) {
+        if (r && r.id) {
+          resultsMap[r.id] = r;
+        }
+      }
+      for (let i = 0; i < nodes.length; i++) {
+        const updated = resultsMap[nodes[i] && nodes[i].id];
+        if (updated) {
+          nodes[i] = updated;
+        }
+      }
+    }
+  } catch (e) {
+  } finally {
+    batchTesting = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" style="width:16px; height:16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>一键检测';
+    }
     render();
   }
 }
