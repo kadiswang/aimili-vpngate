@@ -410,7 +410,7 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
         chunk = ips_to_query[i : i + chunk_size]
         payload = json.dumps(chunk).encode("utf-8")
         request = urllib.request.Request(
-            "http://ip-api.com/batch?lang=zh-CN&fields=status,message,query,country,regionName,city,isp,org,as,asname,proxy,hosting,mobile",
+            "http://ip-api.com/batch?lang=zh-CN&fields=status,message,query,country,regionName,city,isp,org,as,asname,proxy,hosting,mobile,fraudScore",
             data=payload,
             headers={"Content-Type": "application/json", "User-Agent": "vpngate-manager/2.2"},
             method="POST",
@@ -452,6 +452,7 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
                         "location": loc,
                         "ip_type": ip_type,
                         "quality": quality,
+                        "fraud_score": item.get("fraudScore") or 0,
                         "cached_at": now,
                     }
         except Exception as e:
@@ -477,6 +478,7 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
             node["location"] = cached.get("location", "")
             node["ip_type"] = cached.get("ip_type", "")
             node["quality"] = cached.get("quality", "")
+            node["fraud_score"] = cached.get("fraud_score", 0)
 
 
 def diagnose_api_failure(api_url: str = "https://www.vpngate.net/api/iphone/") -> tuple[int, str]:

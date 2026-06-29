@@ -896,6 +896,7 @@ def row_to_node(row: dict[str, str], config_text: str) -> dict[str, Any]:
         "location": "",
         "ip_type": "",
         "quality": "",
+        "fraud_score": 0,
         "latency_ms": 0,
         "config_file": str(config_path),
         "config_text": config_text,
@@ -1545,6 +1546,7 @@ def test_node_by_id(node_id: str) -> dict[str, Any]:
         "location": "",
         "ip_type": "",
         "quality": "",
+        "fraud_score": 0,
     }
     if ok:
         vpn_utils.enrich_ip_info([temp_node])
@@ -1602,6 +1604,7 @@ def test_multiple_nodes(node_ids: list[str]) -> list[dict[str, Any]]:
                 "location": "",
                 "ip_type": "",
                 "quality": "",
+                "fraud_score": 0,
             }
             
         latency = vpn_utils.ping_latency_ms(h, p, fallback_ping)
@@ -1634,6 +1637,7 @@ def test_multiple_nodes(node_ids: list[str]) -> list[dict[str, Any]]:
             "location": "",
             "ip_type": "",
             "quality": "",
+            "fraud_score": 0,
         }
         return temp_node
 
@@ -1918,14 +1922,16 @@ def maintain_valid_nodes(force: bool = False) -> str:
 
         with lock:
             current_nodes = read_nodes()
+            # 只保留可用的旧节点，不可用的删除
+            kept_nodes = [n for n in current_nodes if n.get("probe_status") == "available" or n.get("active")]
             current_by_id = {
                 str(n.get("id")): n
-                for n in current_nodes
+                for n in kept_nodes
                 if n.get("id")
             }
             active_node = None
             if active_openvpn_node_id:
-                active_node = next((n for n in current_nodes if n.get("id") == active_openvpn_node_id), None)
+                active_node = next((n for n in kept_nodes if n.get("id") == active_openvpn_node_id), None)
                 
             merged: list[dict[str, Any]] = []
             seen_ids: set[str] = set()
@@ -1949,6 +1955,7 @@ def maintain_valid_nodes(force: bool = False) -> str:
                             "location",
                             "ip_type",
                             "quality",
+                            "fraud_score",
                         ]:
                             if previous.get(key) not in (None, ""):
                                 cand[key] = previous.get(key)
@@ -2564,6 +2571,7 @@ INDEX_HTML = r"""<!doctype html>
       border: 1px solid var(--border);
       border-radius: 12px;
       overflow: hidden;
+      overflow-x: auto;
     }
     [data-theme="dark"] .table-wrapper {
       background: rgba(17,24,39,0.75);
@@ -3283,12 +3291,18 @@ INDEX_HTML = r"""<!doctype html>
     .latency-good { background: var(--success-bg); color: #059669; }
     .latency-medium { background: var(--warning-bg); color: #d97706; }
     .latency-poor { background: var(--danger-bg); color: #dc2626; }
+    .health-badge { font-weight: 600; font-size: 12px; padding: 2px 6px; border-radius: 4px; display: inline-block; }
+    .health-excellent { background: rgba(16, 185, 129, 0.15); color: #059669; }
+    .health-good { background: rgba(59, 130, 246, 0.15); color: #2563eb; }
+    .health-fair { background: rgba(245, 158, 11, 0.15); color: #d97706; }
+    .health-poor { background: rgba(239, 68, 68, 0.15); color: #dc2626; }
+    .health-critical { background: rgba(127, 29, 29, 0.15); color: #991b1b; }
     @media (max-width: 576px) { .vps-links { grid-template-columns: 1fr; } }
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     @keyframes modalFadeIn { from { transform: scale(0.97); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     
     /* 表格样式 - 覆盖login页面遗留的danger-bg */
-    table { border-collapse: collapse; }
+    table { border-collapse: collapse; table-layout: fixed; }
     th { padding: 10px 14px; background: var(--surface-2); border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text-secondary); font-weight: 600; }
     td { padding: 10px 14px; background: var(--surface); border-bottom: 1px solid var(--border); color: var(--text-primary); font-size: 13px; }
     tbody tr:hover td { background: var(--surface-2); }
@@ -3416,6 +3430,7 @@ INDEX_HTML = r"""<!doctype html>
               <th>物理位置</th>
               <th style="width: 80px;">IP 类型</th>
               <th style="width: 80px;">延迟</th>
+              <th style="width: 80px;">健康度</th>
               <th style="width: 160px;">操作</th>
             </tr>
           </thead>
@@ -3440,6 +3455,14 @@ INDEX_HTML = r"""<!doctype html>
       <option value="">所有IP类型</option>
       <option value="residential">住宅IP</option>
       <option value="hosting">机房IP</option>
+    </select>
+    <select id="health_filter">
+      <option value="all">全部健康度</option>
+      <option value="excellent">优秀 (90+)</option>
+      <option value="good">良好 (70+)</option>
+      <option value="fair">一般 (50+)</option>
+      <option value="poor">较差 (30+)</option>
+      <option value="critical">极差 (0-29)</option>
     </select>
     <button id="btn_favorites" class="toolbar-btn" type="button" onclick="toggleFavoritesView()" style="margin-left: auto; height: 42px; gap: 6px;">
       <svg xmlns="http://www.w3.org/2000/svg" style="width:16px; height:16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -3492,6 +3515,7 @@ INDEX_HTML = r"""<!doctype html>
             <th>运营主体 / ISP</th>
             <th style="width: 80px;">IP 类型</th>
             <th style="width: 80px;">延迟</th>
+            <th style="width: 80px;">健康度</th>
             <th style="width: 160px;">操作</th>
           </tr>
         </thead>
@@ -3857,6 +3881,49 @@ const base=p=>(p||"").split(/[\\/]/).pop();
 function time(ts){return ts?new Date(ts*1000).toLocaleString():"从未"}
 function speed(v){return v?`${(v*8/1000/1000).toFixed(1)} Mbps`:"-"}
 
+// IP Health Score: 0-100 based on fraud score, availability, IP type, latency, quality
+function getHealthScore(n) {
+  if (!n) return 0;
+  let score = 0;
+  // Fraud score: 50 pts (lower is better)
+  const fraud = parseInt(n.fraud_score) || 0;
+  if (fraud <= 5) score += 50;
+  else if (fraud <= 20) score += 40;
+  else if (fraud <= 40) score += 30;
+  else if (fraud <= 60) score += 20;
+  else if (fraud <= 80) score += 10;
+  // Availability: 5 pts
+  if (n.probe_status === "available" || n.active) score += 5;
+  else if (n.probe_status === "not_checked" || n.probe_status === "testing") score += 3;
+  // IP type: 20 pts
+  if (n.ip_type === "residential") score += 20;
+  else if (n.ip_type === "mobile") score += 15;
+  else if (n.ip_type === "hosting") score += 5;
+  // Latency: 5 pts
+  const lat = parseInt(n.latency_ms) || 0;
+  if (lat > 0) {
+    if (lat < 200) score += 5;
+    else if (lat < 400) score += 4;
+    else if (lat < 800) score += 2;
+    else score += 1;
+  }
+  // Quality from vpngate: 20 pts
+  const q = (n.quality || "").toLowerCase();
+  if (q.includes("excellent") || q.includes("极好")) score += 20;
+  else if (q.includes("good") || q.includes("好")) score += 15;
+  else if (q.includes("average") || q.includes("一般")) score += 8;
+  else if (q.includes("normal") || q.includes("一般")) score += 3;
+  return Math.min(score, 100);
+}
+
+function getHealthClass(score) {
+  if (score >= 90) return "health-excellent";
+  if (score >= 70) return "health-good";
+  if (score >= 50) return "health-fair";
+  if (score >= 30) return "health-poor";
+  return "health-critical";
+}
+
 const translateQuality = q => {
   const dict = {"normal": "普通", "proxy": "代理", "datacenter": "数据中心", "mobile": "移动端"};
   return dict[q] || q || "-";
@@ -3908,6 +3975,7 @@ function getFilteredNodes() {
   const selectedCountry = $("country_filter").value;
   const selectedIpType = $("ip_type_filter").value;
   const selectedStatus = $("status_filter").value;
+  const selectedHealth = $("health_filter").value;
   return nodes.filter(n => {
     if (!n) return false;
     if (selectedCountry && translateCountry(n.country) !== selectedCountry) {
@@ -3926,6 +3994,14 @@ function getFilteredNodes() {
     }
     if (selectedStatus === "unavailable" && (n.probe_status !== "unavailable" || n.active)) {
       return false;
+    }
+    if (selectedHealth && selectedHealth !== "all") {
+      const score = getHealthScore(n);
+      const minScores = { excellent: 90, good: 70, fair: 50, poor: 30, critical: 0 };
+      const maxScores = { excellent: 100, good: 89, fair: 49, poor: 29, critical: 29 };
+      if (score < minScores[selectedHealth] || score > maxScores[selectedHealth]) {
+        return false;
+      }
     }
     const favoriteIds = Array.isArray(state.favorite_node_ids) ? state.favorite_node_ids : [];
     if (showFavoritesOnly && !favoriteIds.includes(n.id)) {
@@ -4102,7 +4178,7 @@ function render(){
 
   // Render table rows
   if (currentPageNodes.length === 0) {
-    $("rows").innerHTML = `<tr style="display: table-row !important;"><td colspan="7" style="display: table-cell !important; text-align: center; color: var(--text-secondary); padding: 40px 0;">未找到符合过滤条件的备选节点。</td></tr>`;
+    $("rows").innerHTML = `<tr style="display: table-row !important;"><td colspan="8" style="display: table-cell !important; text-align: center; color: var(--text-secondary); padding: 40px 0;">未找到符合过滤条件的备选节点。</td></tr>`;
   } else {
     $("rows").innerHTML=currentPageNodes.map(n=>{
       if (!n) return '';
@@ -4134,12 +4210,15 @@ function render(){
         : `<button class="test-btn" style="color: var(--text-secondary); border-color: var(--border-color); padding: 0 8px; height: 30px;" onclick="toggleFavorite('${esc(n.id)}', event)">☆ 收藏</button>`;
 
       return `<tr ${rowClass} style="display: table-row !important;">
-        <td style="display: table-cell !important;"><span class="badge ${badgeClass}">${badgeText}</span></td>
+        <td style="display: table-cell !important; white-space: nowrap;"><span class="badge ${badgeClass}">${badgeText}</span></td>
         <td class="mono" style="white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; display: table-cell !important;" title="${esc(n.ip||n.remote_host)}:${n.remote_port||""}">${esc(n.ip||n.remote_host)}:${n.remote_port||""}</td>
         <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: table-cell !important;" title="${esc(displayLocation)}">${esc(displayLocation)}</td>
         <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: table-cell !important;" title="${esc(n.owner||n.as_name||"-")}">${esc(n.owner||n.as_name||"-")}</td>
         <td style="white-space: nowrap; max-width: 110px; overflow: hidden; text-overflow: ellipsis; display: table-cell !important;" title="${esc(translateIpType(n.ip_type))}">${esc(translateIpType(n.ip_type))}</td>
         <td style="white-space: nowrap; display: table-cell !important;">${latencyText}</td>
+        <td style="white-space: nowrap; display: table-cell !important;">
+          <span class="health-badge ${getHealthClass(getHealthScore(n))}">${getHealthScore(n)}</span>
+        </td>
         <td style="display: table-cell !important;">
           <div class="table-actions">
             ${favBtn}
@@ -4210,7 +4289,7 @@ function renderOverviewNodes(activeNode) {
   label.textContent = parts.join(" + ") + " (" + filtered.length + " 个节点)";
 
   if (filtered.length === 0) {
-    container.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-secondary);padding:30px 0;">暂无符合条件的节点</td></tr>';
+    container.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-secondary);padding:30px 0;">暂无符合条件的节点</td></tr>';
     return;
   }
 
@@ -4227,11 +4306,12 @@ function renderOverviewNodes(activeNode) {
       : '<button class="connect-btn" ' + ((isUnavailable || state.is_connecting) ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : '') + ' onclick="connectNode(\'' + esc(n.id) + '\')">切换</button>';
 
     return '<tr' + (isActive ? ' class="active-row"' : '') + ' style="display:table-row!important;">' +
-      '<td style="display:table-cell!important;"><span class="badge ' + badgeClass + '">' + badgeText + '</span></td>' +
+      '<td style="display:table-cell!important;white-space:nowrap;"><span class="badge ' + badgeClass + '">' + badgeText + '</span></td>' +
       '<td class="mono" style="white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis;display:table-cell!important;" title="' + esc(n.ip||n.remote_host) + ':' + (n.remote_port||"") + '">' + esc(n.ip||n.remote_host) + ':' + (n.remote_port||"") + '</td>' +
       '<td style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:table-cell!important;" title="' + esc(displayLocation) + '">' + esc(displayLocation) + '</td>' +
       '<td style="white-space:nowrap;display:table-cell!important;">' + esc(translateIpType(n.ip_type)) + '</td>' +
       '<td style="white-space:nowrap;display:table-cell!important;">' + latencyText + '</td>' +
+      '<td style="white-space:nowrap;display:table-cell!important;"><span class="health-badge ' + getHealthClass(getHealthScore(n)) + '">' + getHealthScore(n) + '</span></td>' +
       '<td style="display:table-cell!important;">' + connectBtn + '</td>' +
       '</tr>';
   }).join("");
@@ -4444,6 +4524,7 @@ async function load(){
 $("country_filter").onchange=()=>{ currentPage = 1; render(); };
 $("ip_type_filter").onchange=()=>{ currentPage = 1; render(); };
 $("status_filter").onchange=()=>{ currentPage = 1; render(); };
+$("health_filter").onchange=()=>{ currentPage = 1; render(); };
 
 function toggleSettingsSubmenu() {
   const sub = $("settings_submenu");
