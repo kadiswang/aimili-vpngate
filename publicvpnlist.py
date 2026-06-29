@@ -144,15 +144,12 @@ def _get_download_token(data_id: str, detail_url: str) -> str | None:
     except json.JSONDecodeError:
         return None
 
-    # ok=true 且没有明确 error 就认为可用（status 可能是 "ok"/"unknown"/"inconclusive"）
-    if not test_data.get("ok") or test_data.get("error"):
-        print(f"[PublicVPNList] 服务器不可用 id={data_id}: {test_data.get('message', test_data.get('error', ''))}", flush=True)
+    # 只要 ok=true 就继续尝试下载（status 可能是 "ok"/"unknown"/"inconclusive"）
+    if not test_data.get("ok"):
+        print(f"[PublicVPNList] test_server 不可用 id={data_id}: {test_data.get('message', test_data.get('error', ''))}", flush=True)
         return None
-
-    # ok=true 且没有明确 error 就认为可用（status 可能是 "ok"/"unknown"/"inconclusive"）
-    if not test_data.get("ok") or test_data.get("error"):
-        print(f"[PublicVPNList] 服务器不可用 id={data_id}: {test_data.get('message', test_data.get('error', ''))}", flush=True)
-        return None
+    if test_data.get("error"):
+        print(f"[PublicVPNList] test_server 返回警告 id={data_id}: {test_data.get('error')}，继续尝试下载", flush=True)
 
     # 3. 获取 token
     token_url = f"{base_url}/get_token.php?id={data_id}"
