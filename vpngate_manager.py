@@ -3464,6 +3464,12 @@ INDEX_HTML = r"""<!doctype html>
       <option value="poor">较差 (30+)</option>
       <option value="critical">极差 (0-29)</option>
     </select>
+    <button id="btn_batch_test" class="toolbar-btn" type="button" onclick="batchTestFiltered()" style="height: 42px; gap: 6px; background: var(--primary); color: #fff; border: none;">
+      <svg xmlns="http://www.w3.org/2000/svg" style="width:16px; height:16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+      </svg>
+      一键检测
+    </button>
     <button id="btn_favorites" class="toolbar-btn" type="button" onclick="toggleFavoritesView()" style="margin-left: auto; height: 42px; gap: 6px;">
       <svg xmlns="http://www.w3.org/2000/svg" style="width:16px; height:16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.907c.961 0 1.371 1.24.588 1.81l-3.97 2.883a1 1 0 00-.364 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.971-2.883a1 1 0 00-1.175 0l-3.97 2.883c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.364-1.118l-3.97-2.883c-.783-.57-.372-1.81.588-1.81h4.906a1 1 0 00.951-.69l1.519-4.674z" />
@@ -3471,6 +3477,16 @@ INDEX_HTML = r"""<!doctype html>
       收藏菜单
     </button>
   </section>
+  <div id="batch_test_progress" style="display: none; margin: 12px 0; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border-color); border-radius: 8px;">
+    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+      <svg style="animation: spin 1s linear infinite; width: 16px; height: 16px; color: var(--primary);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity="0.2" fill="none"></circle><path d="M4 12a8 8 0 018-8" stroke="currentColor" fill="none"></path></svg>
+      <span id="batch_test_status" style="font-size: 13px; color: var(--text-primary); font-weight: 500;">正在检测节点...</span>
+      <span id="batch_test_count" style="font-size: 12px; color: var(--text-secondary); margin-left: auto;">0/0</span>
+    </div>
+    <div style="height: 4px; background: var(--surface-2); border-radius: 2px; overflow: hidden;">
+      <div id="batch_test_bar" style="height: 100%; width: 0%; background: var(--primary); border-radius: 2px; transition: width 0.3s ease;"></div>
+    </div>
+  </div>
   <div id="favorites_panel" style="display: none; background: var(--surface); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
     <div style="display: flex; flex-direction: column; gap: 16px;">
       <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
@@ -3823,7 +3839,7 @@ INDEX_HTML = r"""<!doctype html>
   </div>
 </div>
 <script>
-let nodes=[], state={}, testingNodeIds = new Set();
+let nodes=[], state={}, testingNodeIds = new Set(), batchTesting = false;
 let currentPage = 1;
 const pageSize = 99999;
 let currentPageNodes = [];
@@ -4354,6 +4370,73 @@ async function testNode(btn, id, event){
   } finally {
     testingNodeIds.delete(id);
     render();
+  }
+}
+
+async function batchTestFiltered() {
+  const btn = $("btn_batch_test");
+  const progressEl = $("batch_test_progress");
+  const statusEl = $("batch_test_status");
+  const countEl = $("batch_test_count");
+  const barEl = $("batch_test_bar");
+  
+  if (btn.disabled || batchTesting) return;
+  
+  const filteredNodes = getFilteredNodes();
+  const toTest = filteredNodes.filter(n => n && n.id);
+  if (toTest.length === 0) {
+    statusEl.textContent = "没有可检测的节点";
+    progressEl.style.display = "block";
+    barEl.style.width = "0%";
+    countEl.textContent = "0/0";
+    return;
+  }
+  
+  batchTesting = true;
+  btn.disabled = true;
+  progressEl.style.display = "block";
+  statusEl.textContent = "正在检测节点...";
+  countEl.textContent = `0/${toTest.length}`;
+  barEl.style.width = "0%";
+  
+  const startTime = Date.now();
+  
+  try {
+    const response = await fetchWithCsrf("./api/test_nodes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: toTest.map(n => n.id) })
+    });
+    
+    if (response.ok) {
+      const result = response;
+      if (result.nodes && Array.isArray(result.nodes)) {
+        for (const updated of result.nodes) {
+          const idx = nodes.findIndex(n => n && n.id === updated.id);
+          if (idx !== -1) {
+            nodes[idx] = updated;
+          }
+        }
+        const elapsed = Math.round((Date.now() - startTime) / 1000);
+        statusEl.textContent = `检测完成！共 ${toTest.length} 个节点，耗时 ${elapsed} 秒`;
+        countEl.textContent = `${toTest.length}/${toTest.length}`;
+        barEl.style.width = "100%";
+        render();
+        
+        setTimeout(() => {
+          progressEl.style.display = "none";
+        }, 3000);
+      }
+    } else {
+      statusEl.textContent = "检测失败: " + (result.error || "未知错误");
+      barEl.style.width = "0%";
+    }
+  } catch (e) {
+    statusEl.textContent = "检测失败: 连接服务器失败";
+    barEl.style.width = "0%";
+  } finally {
+    batchTesting = false;
+    btn.disabled = false;
   }
 }
 
