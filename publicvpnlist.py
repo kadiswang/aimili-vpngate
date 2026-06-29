@@ -280,26 +280,33 @@ def fetch_publicvpnlist_nodes() -> list[dict[str, Any]]:
             if max_downloads > 0 and download_count >= max_downloads:
                 break
 
-            # 真实下载 .ovpn（可选）
+            # 真实下载 .ovpn（可选；失败不跳过节点，仅无 config_text）
             config_text = None
+            config_remote_host = node["host"]
+            config_remote_port = int(node["port"])
+            config_remote_ip = node["ip"]
             remote_proto = (node.get("proto", "tcp") or "tcp").lower()
             if require_real:
                 detail_url = f"https://publicvpnlist.com/download/{node['data_id']}/"
                 token = _get_download_token(node["data_id"], detail_url)
-                if not token:
-                    continue
-                ovpn_text = download_ovpn(token, detail_url)
-                if not ovpn_text:
-                    continue
-                try:
-                    remote_host, remote_port, remote_proto = _parse_remote_from_ovpn(
-                        ovpn_text, node["ip"], node["port"]
-                    )
-                except ValueError as e:
-                    print(f"[PublicVPNList] 跳过 id={node['data_id']}: {e}", flush=True)
-                    continue
-                config_text = ovpn_text
-                download_count += 1
+                if token:
+                    ovpn_text = download_ovpn(token, detail_url)
+                    if ovpn_text:
+                        try:
+                            parsed_host, parsed_port, remote_proto = _parse_remote_from_ovpn(
+                                ovpn_text, node["ip"], node["port"]
+                            )
+                            config_text = ovpn_text
+                            config_remote_host = parsed_host
+                            config_remote_port = parsed_port
+                            config_remote_ip = parsed_host
+                            download_count += 1
+                        except ValueError as e:
+                            print(f"[PublicVPNList] 配置解析失败 id={node['data_id']}: {e}，保留页面数据", flush=True)
+                    else:
+                        print(f"[PublicVPNList] 下载 .ovpn 失败 id={node['data_id']}，保留页面数据", flush=True)
+                else:
+                    print(f"[PublicVPNList] 获取 token 失败 id={node['data_id']}，保留页面数据", flush=True)
 
             entry: dict[str, Any] = {
                 "id": nid,
@@ -308,7 +315,7 @@ def fetch_publicvpnlist_nodes() -> list[dict[str, Any]]:
                 "country_en": node["country_name"],
                 "country_short": node["country_code"].upper()[:2],
                 "host_name": node.get("host", ""),
-                "ip": node["ip"],
+                "ip": config_remote_ip,
                 "score": _safe_float(node.get("technical_score"), 0) or None,
                 "ping": _safe_int(node.get("latency"), 0) or None,
                 "speed": speed,
@@ -322,8 +329,8 @@ def fetch_publicvpnlist_nodes() -> list[dict[str, Any]]:
                 "latency_ms": latency,
                 "config_text": config_text or "",
                 "proto": remote_proto if config_text else (node.get("proto", "tcp").lower()),
-                "remote_host": node["host"],
-                "remote_port": int(node["port"]),
+                "remote_host": config_remote_host,
+                "remote_port": config_remote_port,
                 "fetched_at": time.time(),
                 "probe_status": "not_checked",
                 "probe_message": "",
