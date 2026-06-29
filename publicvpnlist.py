@@ -220,7 +220,7 @@ def fetch_publicvpnlist_nodes() -> list[dict[str, Any]]:
     max_countries = _env_int("PUBLICVPNLIST_MAX_COUNTRIES", 5)
     per_country_limit = _env_int("PUBLICVPNLIST_PER_COUNTRY_LIMIT", 10)
     max_downloads = _env_int("PUBLICVPNLIST_MAX_DOWNLOADS", 20)
-    require_real = _env_bool("PUBLICVPNLIST_REQUIRE_REAL_DOWNLOAD", True)
+    require_real = _env_bool("PUBLICVPNLIST_REQUIRE_REAL_DOWNLOAD", False)
     min_speed = _env_int("PUBLICVPNLIST_MIN_SPEED", 0)
     max_latency = _env_int("PUBLICVPNLIST_MAX_LATENCY", 0)
     min_score = _env_int("PUBLICVPNLIST_MIN_SCORE", 0)
