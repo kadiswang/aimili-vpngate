@@ -406,7 +406,7 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
     # 2. Perform HTTP query outside lock
     new_entries = {}
     chunk_size = 100
-    api_url = "https://ip-api.com/batch?lang=zh-CN&fields=status,message,query,country,regionName,city,isp,org,as,asname,proxy,hosting,mobile"
+    api_url = "http://ip-api.com/batch?lang=zh-CN&fields=status,message,query,country,regionName,city,isp,org,as,asname,proxy,hosting,mobile"
     for i in range(0, len(ips_to_query), chunk_size):
         chunk = ips_to_query[i : i + chunk_size]
         payload = json.dumps(chunk).encode("utf-8")
