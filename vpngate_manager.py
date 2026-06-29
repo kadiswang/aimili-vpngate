@@ -4404,43 +4404,79 @@ async function batchTestFiltered() {
   barEl.style.width = "0%";
   
   const startTime = Date.now();
+  const nodeIds = toTest.map(n => n.id);
+  let pollInterval = null;
+  let timeoutHandle = null;
   
-  try {
-    const response = await fetchWithCsrf("./api/test_nodes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids: toTest.map(n => n.id) })
-    });
-    
-    if (response.ok) {
-      const result = response;
-      if (result.nodes && Array.isArray(result.nodes)) {
-        for (const updated of result.nodes) {
+  const stopPolling = () => {
+    if (pollInterval) clearInterval(pollInterval);
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+    batchTesting = false;
+    btn.disabled = false;
+  };
+  
+  const updateProgress = async () => {
+    try {
+      const resp = await fetchWithCsrf("./api/nodes");
+      if (resp && resp.nodes) {
+        // Update local nodes
+        for (const updated of resp.nodes) {
           const idx = nodes.findIndex(n => n && n.id === updated.id);
           if (idx !== -1) {
             nodes[idx] = updated;
           }
         }
-        const elapsed = Math.round((Date.now() - startTime) / 1000);
-        statusEl.textContent = `检测完成！共 ${toTest.length} 个节点，耗时 ${elapsed} 秒`;
-        countEl.textContent = `${toTest.length}/${toTest.length}`;
-        barEl.style.width = "100%";
-        render();
+        // Count tested nodes
+        const testedCount = nodeIds.filter(id => {
+          const n = nodes.find(x => x && x.id === id);
+          return n && n.probe_status !== "not_checked";
+        }).length;
+        const progress = Math.min(100, Math.round((testedCount / nodeIds.length) * 100));
+        barEl.style.width = progress + "%";
+        countEl.textContent = `${testedCount}/${nodeIds.length}`;
         
-        setTimeout(() => {
-          progressEl.style.display = "none";
-        }, 3000);
+        if (testedCount >= nodeIds.length) {
+          stopPolling();
+          const elapsed = Math.round((Date.now() - startTime) / 1000);
+          statusEl.textContent = `检测完成！共 ${nodeIds.length} 个节点，耗时 ${elapsed} 秒`;
+          render();
+          setTimeout(() => {
+            progressEl.style.display = "none";
+          }, 3000);
+          return;
+        }
       }
+    } catch (e) {
+      // Ignore polling errors
+    }
+  };
+  
+  try {
+    const response = await fetchWithCsrf("./api/test_nodes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: nodeIds })
+    });
+    
+    if (response.ok) {
+      // Start polling for results
+      pollInterval = setInterval(updateProgress, 2000);
+      // Timeout after 5 minutes
+      timeoutHandle = setTimeout(() => {
+        stopPolling();
+        const elapsed = Math.round((Date.now() - startTime) / 1000);
+        statusEl.textContent = `检测超时，耗时 ${elapsed} 秒`;
+        render();
+      }, 300000);
     } else {
-      statusEl.textContent = "检测失败: " + (result.error || "未知错误");
+      stopPolling();
+      statusEl.textContent = "检测失败: " + (response.error || "未知错误");
       barEl.style.width = "0%";
     }
   } catch (e) {
+    stopPolling();
     statusEl.textContent = "检测失败: 连接服务器失败";
     barEl.style.width = "0%";
-  } finally {
-    batchTesting = false;
-    btn.disabled = false;
   }
 }
 
@@ -6234,8 +6270,16 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 payload = self.read_json_body(max_bytes=262144)
                 node_ids = payload.get("ids", [])
-                tested_nodes = test_multiple_nodes(node_ids)
-                self.send_json({"ok": True, "nodes": tested_nodes})
+                if not node_ids:
+                    self.send_json({"ok": False, "error": "没有要检测的节点"})
+                    return
+                # 后台异步检测，不阻塞 HTTP 请求
+                threading.Thread(
+                    target=test_multiple_nodes,
+                    args=(node_ids,),
+                    daemon=True
+                ).start()
+                self.send_json({"ok": True, "message": f"已启动 {len(node_ids)} 个节点的检测任务"})
             except Exception as exc:
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
         elif effective_path == "/api/disconnect":
