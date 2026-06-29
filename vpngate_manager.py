@@ -2095,38 +2095,40 @@ def maintain_valid_nodes(force: bool = False) -> str:
                 for n in current_nodes
                 if n.get("id")
             }
-            active_node = None
-            if active_openvpn_node_id:
-                active_node = next((n for n in current_nodes if n.get("id") == active_openvpn_node_id), None)
-                
-            merged: list[dict[str, Any]] = []
-            seen_ids: set[str] = set()
-            
-            if active_node:
-                merged.append(active_node)
-                seen_ids.add(active_node["id"])
-                
+
+            # 以当前节点为基础，保留所有旧节点，避免节点随时间消失
+            merged = list(current_nodes)
+            seen_ids = {str(n.get("id")) for n in merged if n.get("id")}
+
             for cand in candidates:
-                if cand["id"] not in seen_ids:
-                    previous = current_by_id.get(str(cand["id"]))
-                    if previous:
-                        for key in [
-                            "probe_status",
-                            "probe_message",
-                            "latency_ms",
-                            "probed_at",
-                            "owner",
-                            "asn",
-                            "as_name",
-                            "location",
-                            "ip_type",
-                            "quality",
-                        ]:
-                            if previous.get(key) not in (None, ""):
-                                cand[key] = previous.get(key)
+                cid = str(cand.get("id", ""))
+                if not cid or cid in seen_ids:
+                    continue
+                previous = current_by_id.get(cid)
+                if previous:
+                    for key in [
+                        "probe_status",
+                        "probe_message",
+                        "latency_ms",
+                        "probed_at",
+                        "owner",
+                        "asn",
+                        "as_name",
+                        "location",
+                        "ip_type",
+                        "quality",
+                    ]:
+                        if previous.get(key) not in (None, ""):
+                            cand[key] = previous.get(key)
+                    # 替换旧节点（保留 probe 状态等历史信息）
+                    for idx, n in enumerate(merged):
+                        if n.get("id") == cid:
+                            merged[idx] = cand
+                            break
+                else:
                     merged.append(cand)
-                    seen_ids.add(cand["id"])
-                    
+                    seen_ids.add(cid)
+
             if len(merged) > 1000:
                 merged = merged[:1000]
                 
