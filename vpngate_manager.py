@@ -2102,10 +2102,11 @@ def maintain_valid_nodes(force: bool = False) -> str:
 
             for cand in candidates:
                 cid = str(cand.get("id", ""))
-                if not cid or cid in seen_ids:
+                if not cid:
                     continue
                 previous = current_by_id.get(cid)
                 if previous:
+                    # 已存在的节点：用 candidates 的数据替换，保留 probe 状态
                     for key in [
                         "probe_status",
                         "probe_message",
@@ -2120,12 +2121,11 @@ def maintain_valid_nodes(force: bool = False) -> str:
                     ]:
                         if previous.get(key) not in (None, ""):
                             cand[key] = previous.get(key)
-                    # 替换旧节点（保留 probe 状态等历史信息）
                     for idx, n in enumerate(merged):
                         if n.get("id") == cid:
                             merged[idx] = cand
                             break
-                else:
+                elif cid not in seen_ids:
                     merged.append(cand)
                     seen_ids.add(cid)
 
