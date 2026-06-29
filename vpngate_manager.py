@@ -2167,14 +2167,16 @@ def maintain_valid_nodes(force: bool = False) -> str:
 
         with lock:
             current_nodes = read_nodes()
+            # 只保留可用的旧节点，不可用的删除
+            kept_nodes = [n for n in current_nodes if n.get("probe_status") == "available" or n.get("active")]
             current_by_id = {
                 str(n.get("id")): n
-                for n in current_nodes
+                for n in kept_nodes
                 if n.get("id")
             }
 
-            # 以当前节点为基础，保留所有旧节点，避免节点随时间消失
-            merged = list(current_nodes)
+            # 以可用旧节点为基础，追加新节点
+            merged = list(kept_nodes)
             seen_ids = {str(n.get("id")) for n in merged if n.get("id")}
 
             for cand in candidates:
