@@ -940,12 +940,12 @@ def fetch_candidates() -> list[dict[str, Any]]:
 
         t = threading.Thread(target=_pvl_worker, daemon=True)
         t.start()
-        t.join(timeout=90)
+        t.join(timeout=120)
         if t.is_alive():
             log_to_json(
                 "WARNING",
                 "Main",
-                "PublicVPNList 拉取超时 (90s)，已跳过该来源",
+                "PublicVPNList 拉取超时 (120s)，已跳过该来源",
             )
             print("[fetch_candidates] PublicVPNList 拉取超时，跳过", flush=True)
         elif pvl_error:
