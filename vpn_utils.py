@@ -505,7 +505,7 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
 
 
 def fetch_trust_scores(nodes: list[dict[str, Any]]) -> None:
-    """Fetch trust_score from net.coffee API via SOCKS5 proxy and cache results."""
+    """Fetch trust_score from net.coffee API and cache results."""
     ips_to_query = []
     now = time.time()
 
@@ -525,8 +525,23 @@ def fetch_trust_scores(nodes: list[dict[str, Any]]) -> None:
     if not ips_to_query:
         return
 
+    print(f"[fetch_trust_scores] 开始查询 {len(ips_to_query)} 个 IP 的信任评分...", flush=True)
     new_trust = {}
-    semaphore = threading.Semaphore(10)
+    semaphore = threading.Semaphore(8)
+    fail_count = [0]
+
+    def fetch_direct(ip: str) -> int | None:
+        try:
+            url = f"https://api.net.coffee/ip/{ip}/"
+            request = urllib.request.Request(
+                url, headers={"User-Agent": "vpngate-manager/2.2"}
+            )
+            with urllib.request.urlopen(request, timeout=8) as response:
+                data = json.loads(response.read().decode("utf-8", errors="replace"))
+                trust = data.get("trust_score")
+                return int(trust) if trust is not None else None
+        except Exception:
+            return None
 
     def fetch_via_socks5(ip: str) -> int | None:
         try:
@@ -543,27 +558,16 @@ def fetch_trust_scores(nodes: list[dict[str, Any]]) -> None:
         except Exception:
             return None
 
-    def fetch_direct(ip: str) -> int | None:
-        try:
-            url = f"https://api.net.coffee/ip/{ip}/"
-            request = urllib.request.Request(
-                url, headers={"User-Agent": "vpngate-manager/2.2"}
-            )
-            with urllib.request.urlopen(request, timeout=8) as response:
-                data = json.loads(response.read().decode("utf-8", errors="replace"))
-                trust = data.get("trust_score")
-                return int(trust) if trust is not None else None
-        except Exception:
-            return None
-
     def fetch_one(ip: str) -> None:
         with semaphore:
-            # Try SOCKS5 proxy first, fallback to direct
-            trust = fetch_via_socks5(ip)
+            # Try direct first (faster), fallback to SOCKS5 proxy
+            trust = fetch_direct(ip)
             if trust is None:
-                trust = fetch_direct(ip)
+                trust = fetch_via_socks5(ip)
             if trust is not None:
                 new_trust[ip] = trust
+            else:
+                fail_count[0] += 1
 
     threads = []
     for ip in ips_to_query:
@@ -575,7 +579,10 @@ def fetch_trust_scores(nodes: list[dict[str, Any]]) -> None:
         t.join(timeout=60)
 
     if not new_trust:
+        print(f"[fetch_trust_scores] 全部 {fail_count[0]} 个 IP 查询失败", flush=True)
         return
+
+    print(f"[fetch_trust_scores] 成功获取 {len(new_trust)} 个 IP 的信任评分，失败 {fail_count[0]} 个", flush=True)
 
     # Save to cache
     with ip_cache_lock:

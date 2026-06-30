@@ -2176,6 +2176,12 @@ def maintain_valid_nodes(force: bool = False) -> str:
         if not candidates:
             return "没有拉取到新节点"
 
+        # 填充 IP 信息和信任评分
+        try:
+            vpn_utils.enrich_ip_info(candidates)
+        except Exception as exc:
+            print(f"[维护线程] enrich_ip_info 失败: {exc}", flush=True)
+
         with lock:
             current_nodes = read_nodes()
             # 只保留可用的旧节点，不可用的删除
