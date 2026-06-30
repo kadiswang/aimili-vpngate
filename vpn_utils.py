@@ -406,6 +406,7 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
             node["ip_type"] = cached.get("ip_type", "")
             node["quality"] = cached.get("quality", "")
             node["fraud_score"] = cached.get("fraud_score", 0)
+            node["trust_score"] = cached.get("trust_score", 0)
         else:
             if ip not in ips_to_query:
                 ips_to_query.append(ip)
@@ -465,6 +466,7 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
                             "ip_type": ip_type,
                             "quality": quality,
                             "fraud_score": item.get("fraudScore") or 0,
+                            "trust_score": 0,
                             "cached_at": now,
                         }
                 break
@@ -496,6 +498,84 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
             node["ip_type"] = cached.get("ip_type", "")
             node["quality"] = cached.get("quality", "")
             node["fraud_score"] = cached.get("fraud_score", 0)
+            node["trust_score"] = cached.get("trust_score", 0)
+
+    # 5. Fetch trust_score from net.coffee
+    fetch_trust_scores(nodes)
+
+
+def fetch_trust_scores(nodes: list[dict[str, Any]]) -> None:
+    """Fetch trust_score from net.coffee API and cache results."""
+    ips_to_query = []
+    now = time.time()
+
+    with ip_cache_lock:
+        cache = load_ip_cache()
+
+    for node in nodes:
+        ip = node.get("ip") or node.get("remote_host")
+        if not ip:
+            continue
+        if ip in cache and "trust_score" in cache[ip] and now - cache[ip].get("cached_at", 0) < 7 * 24 * 3600:
+            node["trust_score"] = cache[ip].get("trust_score", 0)
+        else:
+            if ip not in ips_to_query:
+                ips_to_query.append(ip)
+
+    if not ips_to_query:
+        return
+
+    # Fetch trust_score concurrently (max 10 concurrent)
+    new_trust = {}
+    semaphore = threading.Semaphore(10)
+
+    def fetch_one(ip: str) -> None:
+        with semaphore:
+            for attempt in range(2):
+                try:
+                    url = f"https://api.net.coffee/ip/{ip}/"
+                    request = urllib.request.Request(
+                        url, headers={"User-Agent": "vpngate-manager/2.2"}
+                    )
+                    with urllib.request.urlopen(request, timeout=10) as response:
+                        data = json.loads(response.read().decode("utf-8", errors="replace"))
+                        trust = data.get("trust_score")
+                        if trust is not None:
+                            new_trust[ip] = int(trust)
+                    return
+                except Exception as e:
+                    if attempt < 1:
+                        time.sleep(1)
+                    else:
+                        pass
+
+    threads = []
+    for ip in ips_to_query:
+        t = threading.Thread(target=fetch_one, args=(ip,))
+        t.start()
+        threads.append(t)
+
+    for t in threads:
+        t.join(timeout=30)
+
+    if not new_trust:
+        return
+
+    # Save to cache
+    with ip_cache_lock:
+        cache = load_ip_cache()
+        for ip, trust in new_trust.items():
+            if ip in cache:
+                cache[ip]["trust_score"] = trust
+            else:
+                cache[ip] = {"trust_score": trust, "cached_at": now}
+        save_ip_cache(cache)
+
+    # Enrich nodes
+    for node in nodes:
+        ip = node.get("ip") or node.get("remote_host")
+        if ip in new_trust:
+            node["trust_score"] = new_trust[ip]
 
 
 def diagnose_api_failure(api_url: str = "https://www.vpngate.net/api/iphone/") -> tuple[int, str]:
