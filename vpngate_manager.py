@@ -4161,9 +4161,12 @@ async function fetchWithCsrf(url, options = {}) {
 
 const $=id=>document.getElementById(id);
 
-// IP Health Score: computed from available node data (ip_type, quality, latency, availability)
+// IP Health Score: prefer net.coffee trust_score, fallback to computed score
 function getHealthScore(n) {
   if (!n) return 0;
+  const trust = parseInt(n.trust_score) || 0;
+  if (trust > 0) return Math.max(0, Math.min(100, trust));
+  // Fallback: compute from available node data
   let score = 0;
   // IP Type: 40 pts
   const t = (n.ip_type || "").toLowerCase();
