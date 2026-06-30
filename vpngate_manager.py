@@ -3900,39 +3900,11 @@ const base=p=>(p||"").split(/[\\/]/).pop();
 function time(ts){return ts?new Date(ts*1000).toLocaleString():"从未"}
 function speed(v){return v?`${(v*8/1000/1000).toFixed(1)} Mbps`:"-"}
 
-// IP Health Score: 0-100 based on trust score, availability, IP type, latency, quality
+// IP Health Score: directly use net.coffee trust_score (0-100)
 function getHealthScore(n) {
   if (!n) return 0;
-  let score = 0;
-  // Trust score: 50 pts (higher is better)
   const trust = parseInt(n.trust_score) || 0;
-  if (trust >= 90) score += 50;
-  else if (trust >= 70) score += 40;
-  else if (trust >= 50) score += 30;
-  else if (trust >= 30) score += 20;
-  else if (trust >= 10) score += 10;
-  // Availability: 5 pts
-  if (n.probe_status === "available" || n.active) score += 5;
-  else if (n.probe_status === "not_checked" || n.probe_status === "testing") score += 3;
-  // IP type: 20 pts
-  if (n.ip_type === "residential") score += 20;
-  else if (n.ip_type === "mobile") score += 15;
-  else if (n.ip_type === "hosting") score += 5;
-  // Latency: 5 pts
-  const lat = parseInt(n.latency_ms) || 0;
-  if (lat > 0) {
-    if (lat < 200) score += 5;
-    else if (lat < 400) score += 4;
-    else if (lat < 800) score += 2;
-    else score += 1;
-  }
-  // Quality from vpngate: 20 pts
-  const q = (n.quality || "").toLowerCase();
-  if (q.includes("excellent") || q.includes("极好")) score += 20;
-  else if (q.includes("good") || q.includes("好")) score += 15;
-  else if (q.includes("average") || q.includes("一般")) score += 8;
-  else if (q.includes("normal") || q.includes("一般")) score += 3;
-  return Math.min(score, 100);
+  return Math.max(0, Math.min(100, trust));
 }
 
 function getHealthClass(score) {
