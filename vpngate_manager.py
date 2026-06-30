@@ -3735,6 +3735,18 @@ INDEX_HTML = r"""<!doctype html>
       </svg>
       一键检测
     </button>
+    <div id="batch_test_progress" style="display:none; margin-left:12px; padding:8px 16px; background:var(--bg-soft); border-radius:8px; min-width:280px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+        <svg style="animation: spin 1s linear infinite; width:14px; height:14px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity="0.2" fill="none"></circle><path d="M4 12a8 8 0 018-8" stroke="currentColor" fill="none"></path></svg>
+        <span id="batch_test_status" style="font-size:13px; color:var(--text-primary);">正在检测节点...</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <div style="flex:1; height:6px; background:var(--border-color); border-radius:3px; overflow:hidden;">
+          <div id="batch_test_bar" style="height:100%; width:0%; background:var(--primary); border-radius:3px; transition:width 0.3s ease;"></div>
+        </div>
+        <span id="batch_test_count" style="font-size:12px; color:var(--text-secondary); min-width:40px; text-align:right;">0/0</span>
+      </div>
+    </div>
     <button id="btn_favorites" class="toolbar-btn" type="button" onclick="toggleFavoritesView()" style="margin-left: auto; height: 42px; gap: 6px;">
       <svg xmlns="http://www.w3.org/2000/svg" style="width:16px; height:16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.907c.961 0 1.371 1.24.588 1.81l-3.97 2.883a1 1 0 00-.364 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.971-2.883a1 1 0 00-1.175 0l-3.97 2.883c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.364-1.118l-3.97-2.883c-.783-.57-.372-1.81.588-1.81h4.906a1 1 0 00.951-.69l1.519-4.674z" />
@@ -4662,46 +4674,101 @@ async function testNode(btn, id, event){
 }
 
 async function batchTestFiltered() {
-  const filtered = getFilteredNodes();
-  if (filtered.length === 0) {
+  const btn = $("btn_batch_test");
+  const progressEl = $("batch_test_progress");
+  const statusEl = $("batch_test_status");
+  const countEl = $("batch_test_count");
+  const barEl = $("batch_test_bar");
+  
+  if (btn.disabled || batchTesting) return;
+  
+  const filteredNodes = getFilteredNodes();
+  const toTest = filteredNodes.filter(n => n && n.id);
+  if (toTest.length === 0) {
+    statusEl.textContent = "没有可检测的节点";
+    progressEl.style.display = "block";
+    barEl.style.width = "0%";
+    countEl.textContent = "0/0";
     return;
   }
+  
   batchTesting = true;
-  const btn = $("btn_batch_test");
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = '<svg style="animation: spin 1s linear infinite; width:16px; height:16px; display:inline-block; margin-right:4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity="0.2" fill="none"></circle><path d="M4 12a8 8 0 018-8" stroke="currentColor" fill="none"></path></svg>检测中...';
-  }
-  render();
+  btn.disabled = true;
+  progressEl.style.display = "block";
+  statusEl.textContent = "正在检测节点...";
+  countEl.textContent = `0/${toTest.length}`;
+  barEl.style.width = "0%";
+  
+  const startTime = Date.now();
+  const nodeIds = toTest.map(n => n.id);
+  let pollInterval = null;
+  let timeoutHandle = null;
+  
+  const stopPolling = () => {
+    if (pollInterval) clearInterval(pollInterval);
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+    batchTesting = false;
+    btn.disabled = false;
+  };
+  
+  const updateProgress = async () => {
+    try {
+      const resp = await fetchWithCsrf("./api/nodes");
+      if (resp && resp.nodes) {
+        for (const updated of resp.nodes) {
+          const idx = nodes.findIndex(n => n && n.id === updated.id);
+          if (idx !== -1) {
+            nodes[idx] = updated;
+          }
+        }
+        const testedCount = nodeIds.filter(id => {
+          const n = nodes.find(x => x && x.id === id);
+          return n && n.probe_status !== "not_checked";
+        }).length;
+        const progress = Math.min(100, Math.round((testedCount / nodeIds.length) * 100));
+        barEl.style.width = progress + "%";
+        countEl.textContent = `${testedCount}/${nodeIds.length}`;
+        
+        if (testedCount >= nodeIds.length) {
+          stopPolling();
+          const elapsed = Math.round((Date.now() - startTime) / 1000);
+          statusEl.textContent = `检测完成！共 ${nodeIds.length} 个节点，耗时 ${elapsed} 秒`;
+          render();
+          setTimeout(() => {
+            progressEl.style.display = "none";
+          }, 3000);
+          return;
+        }
+      }
+    } catch (e) {
+      // Ignore polling errors
+    }
+  };
+  
   try {
-    const ids = filtered.map(n => n.id);
     const response = await fetchWithCsrf("./api/test_nodes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids })
+      body: JSON.stringify({ ids: nodeIds })
     });
-    if (response.ok && Array.isArray(response.nodes)) {
-      const resultsMap = {};
-      for (const r of response.nodes) {
-        if (r && r.id) {
-          resultsMap[r.id] = r;
-        }
-      }
-      for (let i = 0; i < nodes.length; i++) {
-        const updated = resultsMap[nodes[i] && nodes[i].id];
-        if (updated) {
-          nodes[i] = updated;
-        }
-      }
+    
+    if (response.ok) {
+      pollInterval = setInterval(updateProgress, 2000);
+      timeoutHandle = setTimeout(() => {
+        stopPolling();
+        const elapsed = Math.round((Date.now() - startTime) / 1000);
+        statusEl.textContent = `检测超时，耗时 ${elapsed} 秒`;
+        render();
+      }, 300000);
+    } else {
+      stopPolling();
+      statusEl.textContent = "检测失败: " + (response.error || "未知错误");
+      barEl.style.width = "0%";
     }
   } catch (e) {
-  } finally {
-    batchTesting = false;
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" style="width:16px; height:16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>一键检测';
-    }
-    render();
+    stopPolling();
+    statusEl.textContent = "检测失败: 连接服务器失败";
+    barEl.style.width = "0%";
   }
 }
 
@@ -6503,8 +6570,16 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 payload = self.read_json_body(max_bytes=262144)
                 node_ids = payload.get("ids", [])
-                tested_nodes = test_multiple_nodes(node_ids)
-                self.send_json({"ok": True, "nodes": tested_nodes})
+                if not node_ids:
+                    self.send_json({"ok": False, "error": "没有要检测的节点"})
+                    return
+                # 后台异步检测，不阻塞 HTTP 请求
+                threading.Thread(
+                    target=test_multiple_nodes,
+                    args=(node_ids,),
+                    daemon=True,
+                ).start()
+                self.send_json({"ok": True, "message": "已在后台启动节点检测"})
             except Exception as exc:
                 self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
         elif effective_path == "/api/disconnect":
