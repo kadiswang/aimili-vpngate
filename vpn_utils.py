@@ -531,7 +531,7 @@ def fetch_trust_scores(nodes: list[dict[str, Any]]) -> None:
 
     def fetch_direct(ip: str) -> int | None:
         try:
-            url = f"https://ip.net.coffee/ip/{ip}/"
+            url = f"https://ip.net.coffee/api/ip/lookup/{ip}"
             request = urllib.request.Request(
                 url, headers={"User-Agent": "vpngate-manager/2.2"}
             )
@@ -546,7 +546,7 @@ def fetch_trust_scores(nodes: list[dict[str, Any]]) -> None:
         try:
             result = subprocess.run(
                 ["curl", "-s", "--max-time", "8", "--socks5-hostname", "127.0.0.1:7928",
-                 f"https://ip.net.coffee/ip/{ip}/"],
+                 f"https://ip.net.coffee/api/ip/lookup/{ip}"],
                 capture_output=True, text=True, timeout=12
             )
             if result.returncode != 0 or not result.stdout:
