@@ -531,7 +531,7 @@ def fetch_trust_scores(nodes: list[dict[str, Any]]) -> None:
     def fetch_via_socks5(ip: str) -> int | None:
         try:
             result = subprocess.run(
-                ["curl", "-s", "--max-time", "8", "--socks5", "127.0.0.1:7928",
+                ["curl", "-s", "--max-time", "8", "--socks5-hostname", "127.0.0.1:7928",
                  f"https://api.net.coffee/ip/{ip}/"],
                 capture_output=True, text=True, timeout=12
             )
