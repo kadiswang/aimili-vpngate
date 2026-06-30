@@ -396,6 +396,15 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
             node["location"] = cached.get("location", "")
             node["ip_type"] = cached.get("ip_type", "")
             node["quality"] = cached.get("quality", "")
+            node["trust_score"] = cached.get("trust_score", 0)
+            node["is_datacenter"] = cached.get("is_datacenter", False)
+            node["is_residential"] = cached.get("is_residential", False)
+            node["is_vpn"] = cached.get("is_vpn", False)
+            node["is_proxy"] = cached.get("is_proxy", False)
+            node["is_tor"] = cached.get("is_tor", False)
+            node["is_crawler"] = cached.get("is_crawler", False)
+            node["is_abuser"] = cached.get("is_abuser", False)
+            node["abuser_level"] = cached.get("abuser_level", "")
         else:
             if ip not in ips_to_query:
                 ips_to_query.append(ip)
@@ -403,65 +412,22 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
     if not ips_to_query:
         return
 
-    # 2. Perform HTTP query outside lock
+    # 2. Query net.coffee per-IP (with fallback to ip-api.com)
     new_entries = {}
-    chunk_size = 100
-    for i in range(0, len(ips_to_query), chunk_size):
-        chunk = ips_to_query[i : i + chunk_size]
-        payload = json.dumps(chunk).encode("utf-8")
-        request = urllib.request.Request(
-            "http://ip-api.com/batch?lang=zh-CN&fields=status,message,query,country,regionName,city,isp,org,as,asname,proxy,hosting,mobile,fraudScore",
-            data=payload,
-            headers={"Content-Type": "application/json", "User-Agent": "vpngate-manager/2.2"},
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=15) as response:
-                data = json.loads(response.read().decode("utf-8", errors="replace"))
-                if not isinstance(data, list):
-                    continue
-                for item in data:
-                    if not isinstance(item, dict):
-                        continue
-                    if item.get("status") != "success":
-                        continue
-                    query_ip = item.get("query")
-                    if not query_ip:
-                        continue
-
-                    ip_type = "residential"
-                    if item.get("mobile"):
-                        ip_type = "mobile"
-                    elif item.get("hosting") or item.get("proxy"):
-                        ip_type = "hosting"
-
-                    quality = "normal"
-                    if item.get("proxy"):
-                        quality = "proxy"
-                    elif item.get("hosting"):
-                        quality = "datacenter"
-                    elif item.get("mobile"):
-                        quality = "mobile"
-
-                    loc = " ".join(part for part in [item.get("country"), item.get("regionName"), item.get("city")] if part)
-
-                    new_entries[query_ip] = {
-                        "owner": item.get("org") or item.get("isp") or "",
-                        "asn": item.get("as") or "",
-                        "as_name": item.get("asname") or "",
-                        "location": loc,
-                        "ip_type": ip_type,
-                        "quality": quality,
-                        "fraud_score": item.get("fraudScore") or 0,
-                        "cached_at": now,
-                    }
-        except Exception as e:
-            print(f"[enrich_ip_info] Query failed: {e}", flush=True)
+    for ip in ips_to_query:
+        entry = query_ip_netcoffee(ip)
+        if entry:
+            new_entries[ip] = entry
+        else:
+            # Fallback to ip-api.com
+            entry = query_ip_api(ip)
+            if entry:
+                new_entries[ip] = entry
 
     if not new_entries:
         return
 
-    # 3. Save cache thread-safely (reload & update to avoid overwrite of concurrent queries)
+    # 3. Save cache thread-safely
     with ip_cache_lock:
         cache = load_ip_cache()
         cache.update(new_entries)
@@ -478,7 +444,126 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
             node["location"] = cached.get("location", "")
             node["ip_type"] = cached.get("ip_type", "")
             node["quality"] = cached.get("quality", "")
-            node["fraud_score"] = cached.get("fraud_score", 0)
+            node["trust_score"] = cached.get("trust_score", 0)
+            node["is_datacenter"] = cached.get("is_datacenter", False)
+            node["is_residential"] = cached.get("is_residential", False)
+            node["is_vpn"] = cached.get("is_vpn", False)
+            node["is_proxy"] = cached.get("is_proxy", False)
+            node["is_tor"] = cached.get("is_tor", False)
+            node["is_crawler"] = cached.get("is_crawler", False)
+            node["is_abuser"] = cached.get("is_abuser", False)
+            node["abuser_level"] = cached.get("abuser_level", "")
+
+
+def query_ip_netcoffee(ip: str) -> dict[str, Any] | None:
+    """Query IP info from net.coffee API."""
+    try:
+        url = f"https://ip.net.coffee/api/ip/lookup/{ip}"
+        request = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; vpngate-manager/2.2)"},
+        )
+        with urllib.request.urlopen(request, timeout=10) as response:
+            data = json.loads(response.read().decode("utf-8", errors="replace"))
+        if not isinstance(data, dict) or not data.get("ip"):
+            return None
+
+        ip_type = "residential"
+        if data.get("is_mobile"):
+            ip_type = "mobile"
+        elif data.get("is_datacenter") or data.get("is_proxy") or data.get("is_vpn"):
+            ip_type = "hosting"
+
+        quality = "normal"
+        if data.get("is_proxy"):
+            quality = "proxy"
+        elif data.get("is_datacenter"):
+            quality = "datacenter"
+        elif data.get("is_vpn"):
+            quality = "vpn"
+        elif data.get("is_mobile"):
+            quality = "mobile"
+        elif data.get("is_residential"):
+            quality = "residential"
+
+        country = data.get("country") or ""
+        region = data.get("region") or ""
+        city = data.get("city") or ""
+        loc = " ".join(part for part in [country, region, city] if part)
+
+        return {
+            "owner": data.get("asOrganization") or data.get("company_name") or "",
+            "asn": data.get("asn") or "",
+            "as_name": data.get("asname") or "",
+            "location": loc,
+            "ip_type": ip_type,
+            "quality": quality,
+            "trust_score": data.get("trust_score", 0),
+            "is_datacenter": data.get("is_datacenter", False),
+            "is_residential": data.get("isResidential", False),
+            "is_vpn": data.get("is_vpn", False),
+            "is_proxy": data.get("is_proxy", False),
+            "is_tor": data.get("is_tor", False),
+            "is_crawler": data.get("is_crawler", False),
+            "is_abuser": data.get("is_abuser", False),
+            "abuser_level": (data.get("intelligence") or {}).get("abuser_level", ""),
+            "cached_at": time.time(),
+        }
+    except Exception as e:
+        print(f"[query_ip_netcoffee] {ip}: {e}", flush=True)
+        return None
+
+
+def query_ip_api(ip: str) -> dict[str, Any] | None:
+    """Fallback: Query IP info from ip-api.com."""
+    try:
+        url = f"http://ip-api.com/json/{ip}?lang=zh-CN&fields=status,query,country,regionName,city,isp,org,as,asname,proxy,hosting,mobile,fraudScore"
+        request = urllib.request.Request(
+            url,
+            headers={"User-Agent": "vpngate-manager/2.2"},
+        )
+        with urllib.request.urlopen(request, timeout=10) as response:
+            data = json.loads(response.read().decode("utf-8", errors="replace"))
+        if not isinstance(data, dict) or data.get("status") != "success":
+            return None
+
+        ip_type = "residential"
+        if data.get("mobile"):
+            ip_type = "mobile"
+        elif data.get("hosting") or data.get("proxy"):
+            ip_type = "hosting"
+
+        quality = "normal"
+        if data.get("proxy"):
+            quality = "proxy"
+        elif data.get("hosting"):
+            quality = "datacenter"
+        elif data.get("mobile"):
+            quality = "mobile"
+
+        loc = " ".join(part for part in [data.get("country"), data.get("regionName"), data.get("city")] if part)
+
+        return {
+            "owner": data.get("org") or data.get("isp") or "",
+            "asn": data.get("as") or "",
+            "as_name": data.get("asname") or "",
+            "location": loc,
+            "ip_type": ip_type,
+            "quality": quality,
+            "trust_score": max(0, 100 - (data.get("fraudScore") or 0)),
+            "is_datacenter": bool(data.get("hosting")),
+            "is_residential": not (data.get("hosting") or data.get("proxy")),
+            "is_vpn": False,
+            "is_proxy": bool(data.get("proxy")),
+            "is_tor": False,
+            "is_crawler": False,
+            "is_abuser": False,
+            "abuser_level": "",
+            "cached_at": time.time(),
+        }
+    except Exception as e:
+        print(f"[query_ip_api] {ip}: {e}", flush=True)
+        return None
 
 
 def diagnose_api_failure(api_url: str = "https://www.vpngate.net/api/iphone/") -> tuple[int, str]:

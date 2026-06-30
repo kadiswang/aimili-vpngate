@@ -896,7 +896,7 @@ def row_to_node(row: dict[str, str], config_text: str) -> dict[str, Any]:
         "location": "",
         "ip_type": "",
         "quality": "",
-        "fraud_score": 0,
+        "trust_score": 0,
         "latency_ms": 0,
         "config_file": str(config_path),
         "config_text": config_text,
@@ -1546,7 +1546,7 @@ def test_node_by_id(node_id: str) -> dict[str, Any]:
         "location": "",
         "ip_type": "",
         "quality": "",
-        "fraud_score": 0,
+        "trust_score": 0,
     }
     if ok:
         vpn_utils.enrich_ip_info([temp_node])
@@ -1604,7 +1604,7 @@ def test_multiple_nodes(node_ids: list[str]) -> list[dict[str, Any]]:
                 "location": "",
                 "ip_type": "",
                 "quality": "",
-                "fraud_score": 0,
+                "trust_score": 0,
             }
             
         latency = vpn_utils.ping_latency_ms(h, p, fallback_ping)
@@ -1637,7 +1637,7 @@ def test_multiple_nodes(node_ids: list[str]) -> list[dict[str, Any]]:
             "location": "",
             "ip_type": "",
             "quality": "",
-            "fraud_score": 0,
+            "trust_score": 0,
         }
         return temp_node
 
@@ -1955,7 +1955,7 @@ def maintain_valid_nodes(force: bool = False) -> str:
                             "location",
                             "ip_type",
                             "quality",
-                            "fraud_score",
+                            "trust_score",
                         ]:
                             if previous.get(key) not in (None, ""):
                                 cand[key] = previous.get(key)
@@ -3900,17 +3900,17 @@ const base=p=>(p||"").split(/[\\/]/).pop();
 function time(ts){return ts?new Date(ts*1000).toLocaleString():"从未"}
 function speed(v){return v?`${(v*8/1000/1000).toFixed(1)} Mbps`:"-"}
 
-// IP Health Score: 0-100 based on fraud score, availability, IP type, latency, quality
+// IP Health Score: 0-100 based on trust score, availability, IP type, latency, quality
 function getHealthScore(n) {
   if (!n) return 0;
   let score = 0;
-  // Fraud score: 50 pts (lower is better)
-  const fraud = parseInt(n.fraud_score) || 0;
-  if (fraud <= 5) score += 50;
-  else if (fraud <= 20) score += 40;
-  else if (fraud <= 40) score += 30;
-  else if (fraud <= 60) score += 20;
-  else if (fraud <= 80) score += 10;
+  // Trust score: 50 pts (higher is better)
+  const trust = parseInt(n.trust_score) || 0;
+  if (trust >= 90) score += 50;
+  else if (trust >= 70) score += 40;
+  else if (trust >= 50) score += 30;
+  else if (trust >= 30) score += 20;
+  else if (trust >= 10) score += 10;
   // Availability: 5 pts
   if (n.probe_status === "available" || n.active) score += 5;
   else if (n.probe_status === "not_checked" || n.probe_status === "testing") score += 3;
