@@ -4161,38 +4161,11 @@ async function fetchWithCsrf(url, options = {}) {
 
 const $=id=>document.getElementById(id);
 
-// IP Health Score: prefer net.coffee trust_score, fallback to proxy/mobile/hosting based score
+// IP Health Score: directly use net.coffee trust_score (0-100)
 function getHealthScore(n) {
   if (!n) return 0;
   const trust = parseInt(n.trust_score) || 0;
-  if (trust > 0) return Math.max(0, Math.min(100, trust));
-  // Fallback: quality (proxy/hosting/mobile) + ip_type + latency + availability
-  let score = 0;
-  // Quality = strongest signal (derived from ip-api proxy/hosting/mobile flags)
-  const q = (n.quality || "").toLowerCase();
-  if (q === "normal") score += 50;
-  else if (q === "mobile") score += 35;
-  else if (q === "datacenter") score += 20;
-  else if (q === "proxy") score += 5;
-  else score += 25;
-  // IP type = secondary signal
-  const t = (n.ip_type || "").toLowerCase();
-  if (t === "residential") score += 20;
-  else if (t === "mobile") score += 15;
-  else if (t === "hosting") score += 5;
-  else score += 10;
-  // Latency = lower is better
-  const lat = parseInt(n.latency_ms) || 0;
-  if (lat > 0) {
-    if (lat < 200) score += 20;
-    else if (lat < 400) score += 12;
-    else if (lat < 800) score += 6;
-    else if (lat < 1500) score += 2;
-  }
-  // Availability
-  if (n.probe_status === "available" || n.active) score += 10;
-  else if (n.probe_status === "not_checked" || n.probe_status === "testing") score += 5;
-  return Math.min(score, 100);
+  return Math.max(0, Math.min(100, trust));
 }
 
 function getHealthClass(score) {
