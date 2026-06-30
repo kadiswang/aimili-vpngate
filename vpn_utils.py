@@ -466,7 +466,6 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
                             "ip_type": ip_type,
                             "quality": quality,
                             "fraud_score": item.get("fraudScore") or 0,
-                            "trust_score": 0,
                             "cached_at": now,
                         }
                 break
@@ -516,7 +515,7 @@ def fetch_trust_scores(nodes: list[dict[str, Any]]) -> None:
         ip = node.get("ip") or node.get("remote_host")
         if not ip:
             continue
-        if ip in cache and "trust_score" in cache[ip] and now - cache[ip].get("cached_at", 0) < 7 * 24 * 3600:
+        if ip in cache and cache[ip].get("trust_score") and now - cache[ip].get("cached_at", 0) < 7 * 24 * 3600:
             node["trust_score"] = cache[ip].get("trust_score", 0)
         else:
             if ip not in ips_to_query:
