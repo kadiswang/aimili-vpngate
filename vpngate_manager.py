@@ -211,6 +211,7 @@ def load_ui_config() -> dict[str, Any]:
             "routing_mode": "auto",
             "force_country": "",
             "routing_ip_type": "all",
+            "min_health_score": 0,
             "connection_enabled": True,
             "fixed_node_id": "",
             "favorite_node_ids": [],
@@ -223,7 +224,7 @@ def load_ui_config() -> dict[str, Any]:
                 data = json.loads(auth_file.read_text(encoding="utf-8"))
                 for key, val in data.items():
                     config[key] = val
-                for key in ["host", "port", "proxy_port", "routing_mode", "force_country", "routing_ip_type", "connection_enabled", "fixed_node_id", "favorite_node_ids", "fav_fail_fallback", "upstream_proxy"]:
+                for key in ["host", "port", "proxy_port", "routing_mode", "force_country", "routing_ip_type", "min_health_score", "connection_enabled", "fixed_node_id", "favorite_node_ids", "fav_fail_fallback", "upstream_proxy"]:
                     if key not in data:
                         updated = True
             except Exception:
@@ -525,6 +526,7 @@ def get_state() -> dict[str, Any]:
     state["routing_mode"] = ui_cfg.get("routing_mode", "auto")
     state["force_country"] = ui_cfg.get("force_country", "")
     state["routing_ip_type"] = ui_cfg.get("routing_ip_type", "all")
+    state["min_health_score"] = ui_cfg.get("min_health_score", 0)
     state["connection_enabled"] = ui_cfg.get("connection_enabled", True)
     state["fixed_node_id"] = ui_cfg.get("fixed_node_id", "")
     state["favorite_node_ids"] = ui_cfg.get("favorite_node_ids", [])
@@ -1464,6 +1466,10 @@ def apply_routing_filters(
             or (include_unknown_ip_type and not n.get("ip_type"))
         ]
 
+    min_health = ui_cfg.get("min_health_score", 0)
+    if min_health > 0:
+        candidates = [n for n in candidates if (n.get("trust_score") or 0) >= min_health]
+
     return candidates
 
 def normalized_country_name(country: Any) -> str:
@@ -1510,6 +1516,10 @@ def validate_node_allowed_by_routing(node: dict[str, Any], ui_cfg: dict[str, Any
         raise RuntimeError("当前已锁定住宅 IP 出站，不能连接非住宅节点")
     if routing_ip_type == "hosting" and node_ip_type != "hosting":
         raise RuntimeError("当前已锁定机房 IP 出站，不能连接非机房节点")
+
+    min_health = ui_cfg.get("min_health_score", 0)
+    if min_health > 0 and (node.get("trust_score") or 0) < min_health:
+        raise RuntimeError(f"当前要求 IP 健康度 ≥{min_health}，该节点不满足")
 
 def enforce_active_node_allowed_by_routing(ui_cfg: dict[str, Any], reason: str = "路由规则已更新") -> str | None:
     active_id = active_openvpn_node_id
@@ -3985,6 +3995,19 @@ INDEX_HTML = r"""<!doctype html>
             </div>
           </div>
           
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+              <span>IP 健康度最低阈值</span>
+              <span id="health_score_label" style="font-weight: 600; color: var(--primary);">不限</span>
+            </label>
+            <input type="range" id="net_min_health" style="width: 100%; height: 6px; appearance: none; background: var(--border-color); border-radius: 3px; outline: none; cursor: pointer; margin-top: 4px;" 
+              min="0" max="100" value="0" step="5"
+              oninput="$('health_score_label').textContent = this.value > 0 ? '&ge; ' + this.value + ' 分' : '不限'">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+              <span>不限</span><span>50</span><span>100</span>
+            </div>
+          </div>
+          
           <div id="net_routing_warning" class="form-hint" style="font-size: 12px; color: var(--text-secondary); line-height: 1.4; padding: 8px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; margin-top: 8px;">
             ℹ️ <strong>自动配置</strong>：全自动测试并选择最佳IP。在使用过程中，如果当前连接节点没有失效，将不再更换IP；如果当前节点失效，系统将立刻秒级自动漂移到其他最快的可用节点。
           </div>
@@ -5263,6 +5286,9 @@ function openNetworkModal() {
     $("net_routing_mode").value = state.routing_mode || "auto";
     $("net_force_country").value = state.force_country || "";
     $("net_routing_ip_type").value = state.routing_ip_type || "all";
+    const mhs = state.min_health_score || 0;
+    $("net_min_health").value = mhs;
+    $("health_score_label").textContent = mhs > 0 ? "≥ " + mhs + " 分" : "不限";
     
     const up = state.upstream_proxy || {};
     $("net_upstream_enabled").checked = !!up.enabled;
@@ -5396,6 +5422,7 @@ async function saveNetwork(e) {
   const routingMode = $("net_routing_mode").value;
   const forceCountry = $("net_force_country").value;
   const routingIpType = $("net_routing_ip_type").value;
+  const minHealthScore = parseInt($("net_min_health").value) || 0;
   
   const upstreamEnabled = $("net_upstream_enabled").checked;
   const upstreamType = $("net_upstream_type").value;
@@ -5447,6 +5474,7 @@ async function saveNetwork(e) {
         routing_mode: routingMode,
         force_country: forceCountry,
         routing_ip_type: routingIpType,
+        min_health_score: minHealthScore,
         upstream_proxy: upstreamEnabled ? {
           enabled: true,
           type: upstreamType,
@@ -6365,6 +6393,7 @@ class Handler(BaseHTTPRequestHandler):
                 routing_mode = str(payload.get("routing_mode") or "auto").strip()
                 force_country = str(payload.get("force_country") or "").strip()
                 routing_ip_type = str(payload.get("routing_ip_type") or "all").strip()
+                min_health_score = int(payload.get("min_health_score", 0)) or 0
                 
                 try:
                     new_proxy_port_int = int(new_proxy_port)
@@ -6392,6 +6421,7 @@ class Handler(BaseHTTPRequestHandler):
                 ui_cfg["routing_mode"] = routing_mode
                 ui_cfg["force_country"] = force_country
                 ui_cfg["routing_ip_type"] = routing_ip_type
+                ui_cfg["min_health_score"] = min_health_score
                 
                 upstream_data = payload.get("upstream_proxy")
                 if upstream_data and isinstance(upstream_data, dict):
