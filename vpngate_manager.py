@@ -4161,34 +4161,35 @@ async function fetchWithCsrf(url, options = {}) {
 
 const $=id=>document.getElementById(id);
 
-// IP Health Score: prefer net.coffee trust_score, fallback to computed score
+// IP Health Score: prefer net.coffee trust_score, fallback to proxy/mobile/hosting based score
 function getHealthScore(n) {
   if (!n) return 0;
   const trust = parseInt(n.trust_score) || 0;
   if (trust > 0) return Math.max(0, Math.min(100, trust));
-  // Fallback: compute from available node data
+  // Fallback: quality (proxy/hosting/mobile) + ip_type + latency + availability
   let score = 0;
-  // IP Type: 40 pts
-  const t = (n.ip_type || "").toLowerCase();
-  if (t === "residential") score += 40;
-  else if (t === "mobile") score += 30;
-  else if (t === "hosting") score += 10;
-  else score += 15;
-  // Quality: 30 pts
+  // Quality = strongest signal (derived from ip-api proxy/hosting/mobile flags)
   const q = (n.quality || "").toLowerCase();
-  if (q.includes("excellent") || q.includes("极好")) score += 30;
-  else if (q.includes("good") || q.includes("好")) score += 22;
-  else if (q.includes("average") || q.includes("一般")) score += 14;
-  else if (q.includes("normal") || q.includes("正常")) score += 8;
-  // Latency: 20 pts
+  if (q === "normal") score += 50;
+  else if (q === "mobile") score += 35;
+  else if (q === "datacenter") score += 20;
+  else if (q === "proxy") score += 5;
+  else score += 25;
+  // IP type = secondary signal
+  const t = (n.ip_type || "").toLowerCase();
+  if (t === "residential") score += 20;
+  else if (t === "mobile") score += 15;
+  else if (t === "hosting") score += 5;
+  else score += 10;
+  // Latency = lower is better
   const lat = parseInt(n.latency_ms) || 0;
   if (lat > 0) {
     if (lat < 200) score += 20;
-    else if (lat < 400) score += 14;
-    else if (lat < 800) score += 8;
-    else if (lat < 1500) score += 3;
+    else if (lat < 400) score += 12;
+    else if (lat < 800) score += 6;
+    else if (lat < 1500) score += 2;
   }
-  // Availability: 10 pts
+  // Availability
   if (n.probe_status === "available" || n.active) score += 10;
   else if (n.probe_status === "not_checked" || n.probe_status === "testing") score += 5;
   return Math.min(score, 100);
