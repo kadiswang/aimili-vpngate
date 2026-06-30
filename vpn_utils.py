@@ -5,10 +5,10 @@ import os
 import re
 import socket
 import subprocess
+import threading
 import time
 import urllib.parse
 import urllib.request
-import threading
 from pathlib import Path
 from typing import Any
 
@@ -505,7 +505,7 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
 
 
 def fetch_trust_scores(nodes: list[dict[str, Any]]) -> None:
-    """Fetch trust_score from net.coffee API and cache results."""
+    """Fetch trust_score from net.coffee API via SOCKS5 proxy and cache results."""
     ips_to_query = []
     now = time.time()
 
@@ -525,29 +525,45 @@ def fetch_trust_scores(nodes: list[dict[str, Any]]) -> None:
     if not ips_to_query:
         return
 
-    # Fetch trust_score concurrently (max 10 concurrent)
     new_trust = {}
     semaphore = threading.Semaphore(10)
 
+    def fetch_via_socks5(ip: str) -> int | None:
+        try:
+            result = subprocess.run(
+                ["curl", "-s", "--max-time", "8", "--socks5", "127.0.0.1:7928",
+                 f"https://api.net.coffee/ip/{ip}/"],
+                capture_output=True, text=True, timeout=12
+            )
+            if result.returncode != 0 or not result.stdout:
+                return None
+            data = json.loads(result.stdout)
+            trust = data.get("trust_score")
+            return int(trust) if trust is not None else None
+        except Exception:
+            return None
+
+    def fetch_direct(ip: str) -> int | None:
+        try:
+            url = f"https://api.net.coffee/ip/{ip}/"
+            request = urllib.request.Request(
+                url, headers={"User-Agent": "vpngate-manager/2.2"}
+            )
+            with urllib.request.urlopen(request, timeout=8) as response:
+                data = json.loads(response.read().decode("utf-8", errors="replace"))
+                trust = data.get("trust_score")
+                return int(trust) if trust is not None else None
+        except Exception:
+            return None
+
     def fetch_one(ip: str) -> None:
         with semaphore:
-            for attempt in range(2):
-                try:
-                    url = f"https://api.net.coffee/ip/{ip}/"
-                    request = urllib.request.Request(
-                        url, headers={"User-Agent": "vpngate-manager/2.2"}
-                    )
-                    with urllib.request.urlopen(request, timeout=10) as response:
-                        data = json.loads(response.read().decode("utf-8", errors="replace"))
-                        trust = data.get("trust_score")
-                        if trust is not None:
-                            new_trust[ip] = int(trust)
-                    return
-                except Exception as e:
-                    if attempt < 1:
-                        time.sleep(1)
-                    else:
-                        pass
+            # Try SOCKS5 proxy first, fallback to direct
+            trust = fetch_via_socks5(ip)
+            if trust is None:
+                trust = fetch_direct(ip)
+            if trust is not None:
+                new_trust[ip] = trust
 
     threads = []
     for ip in ips_to_query:
@@ -556,7 +572,7 @@ def fetch_trust_scores(nodes: list[dict[str, Any]]) -> None:
         threads.append(t)
 
     for t in threads:
-        t.join(timeout=30)
+        t.join(timeout=60)
 
     if not new_trust:
         return
