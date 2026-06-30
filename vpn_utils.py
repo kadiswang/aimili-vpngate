@@ -500,9 +500,6 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
             node["fraud_score"] = cached.get("fraud_score", 0)
             node["trust_score"] = cached.get("trust_score", 0)
 
-    # 5. Fetch trust_score from net.coffee
-    fetch_trust_scores(nodes)
-
 
 def fetch_trust_scores(nodes: list[dict[str, Any]]) -> None:
     """Fetch trust_score from net.coffee API and cache results."""
