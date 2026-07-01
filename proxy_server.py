@@ -2,6 +2,7 @@
 from __future__ import annotations
 import base64
 import os
+import random
 import secrets
 import select
 import socket
@@ -10,6 +11,8 @@ import concurrent.futures
 import urllib.parse
 import time
 from typing import Any
+
+import vpn_utils
 
 def parse_positive_int(value: str | None, default: int) -> int:
     try:
@@ -86,7 +89,6 @@ def check_credentials(username: str | None, password: str | None) -> bool:
     return secrets.compare_digest(username or "", expected_user) and secrets.compare_digest(password or "", expected_pass)
 
 def dns_query_over_tun0(host: str, qtype: int, dns_server: str, timeout: float) -> str | None:
-    import random
     sock = None
     try:
         tx_id = random.getrandbits(16).to_bytes(2, "big")
@@ -222,14 +224,18 @@ def create_connection(address: tuple[str, int], timeout: float = 20) -> socket.s
         raise OSError("getaddrinfo returns empty list")
 
 RELAY_BUFFER_SIZE = parse_positive_int(os.environ.get("LOCAL_PROXY_RELAY_BUFFER"), 262144)
+RELAY_IDLE_TIMEOUT = parse_positive_int(os.environ.get("LOCAL_PROXY_IDLE_TIMEOUT"), 300)  # 5分钟空闲超时
 
 def relay(left: socket.socket, right: socket.socket) -> None:
     sockets = [left, right]
+    last_activity = time.time()
     while True:
-        readable, _, errored = select.select(sockets, [], sockets, 65)
+        readable, _, errored = select.select(sockets, [], sockets, min(65, RELAY_IDLE_TIMEOUT))
         if errored:
             return
         if not readable:
+            if time.time() - last_activity > RELAY_IDLE_TIMEOUT:
+                return
             try:
                 left.sendall(b"")
             except OSError:
@@ -239,6 +245,7 @@ def relay(left: socket.socket, right: socket.socket) -> None:
             except OSError:
                 pass
             return
+        last_activity = time.time()
         for source in readable:
             target = right if source is left else left
             try:
@@ -438,7 +445,6 @@ def start_proxy_server(host: str, port: int) -> None:
                 server.listen(256)
                 print(f"HTTP/SOCKS5 proxy listening on 0.0.0.0:{port} (仅 IPv4)", flush=True)
             except Exception as ex:
-                import vpn_utils
                 diag = vpn_utils.diagnose_local_obstructions(port, host="0.0.0.0")
                 diag_msg = diag[1] if diag else str(ex)
                 print(f"[ERROR] Failed to start HTTP/SOCKS5 proxy on 0.0.0.0:{port}: {diag_msg}", flush=True)
@@ -452,13 +458,11 @@ def start_proxy_server(host: str, port: int) -> None:
                 server.listen(256)
                 print(f"HTTP/SOCKS5 proxy listening on 127.0.0.1:{port} (仅 IPv4)", flush=True)
             except Exception as ex:
-                import vpn_utils
                 diag = vpn_utils.diagnose_local_obstructions(port, host="127.0.0.1")
                 diag_msg = diag[1] if diag else str(ex)
                 print(f"[ERROR] Failed to start HTTP/SOCKS5 proxy on 127.0.0.1:{port}: {diag_msg}", flush=True)
                 return
         else:
-            import vpn_utils
             diag = vpn_utils.diagnose_local_obstructions(port, host=host)
             diag_msg = diag[1] if diag else str(e)
             print(f"[ERROR] Failed to start HTTP/SOCKS5 proxy on {host}:{port}: {diag_msg}", flush=True)
