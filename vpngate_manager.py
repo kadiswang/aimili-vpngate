@@ -3545,8 +3545,23 @@ INDEX_HTML = r"""<!doctype html>
     tbody tr:last-child td { border-bottom: none; }
     
     @media (max-width: 768px) {
-      .modal { padding: 12px; align-items: flex-end; }
-      .modal-content { width: 100%; max-width: none; border-radius: 16px 16px 0 0; max-height: 90vh; }
+      .modal { padding: 16px; align-items: center; justify-content: center; }
+      .modal-content {
+        width: 100%;
+        max-width: 420px;
+        border-radius: 16px;
+        max-height: 85vh;
+        padding: 20px;
+      }
+      .modal-content h3 { font-size: 17px; }
+      .modal-content .form-group { margin-bottom: 14px; }
+      .modal-content .form-label { font-size: 13px; }
+      .modal-content .input-field { height: 42px; font-size: 14px; }
+      .modal-content .option-group { gap: 8px; }
+      .modal-content .option-card { padding: 10px 12px; }
+      .modal-content .option-card-title { font-size: 13px; }
+      .modal-content .option-card-desc { font-size: 11px; }
+      .modal-content button { height: 42px; font-size: 14px; }
     }
 
     /* === 移动端优化：节点列表卡片式布局 === */
