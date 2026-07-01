@@ -576,8 +576,15 @@ def update_service():
         time.sleep(2)
 
 def uninstall_service():
+    # 清屏并显示卸载提示
+    print("\033[H\033[J", end="", flush=True)
+    print("=======================================================")
+    print("              AimiliVPN 完全卸载程序")
+    print("=======================================================")
+    print()
     confirm = input("确定要完全卸载 AimiliVPN 吗？(y/N): ")
     if confirm.lower() == 'y':
+        print()
         print("正在完全卸载 AimiliVPN...", flush=True)
         stop_service()
         if shutil.which("systemctl"):
@@ -597,9 +604,13 @@ def uninstall_service():
         except Exception:
             pass
         subprocess.run(["rm", "-rf", INSTALL_DIR])
-        print("AimiliVPN 已卸载！")
+        print()
+        print("=======================================================")
+        print("AimiliVPN 已完全卸载！感谢您的使用。")
+        print("=======================================================")
         sys.exit(0)
     else:
+        print()
         print("已取消卸载。")
         time.sleep(1)
 
