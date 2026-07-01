@@ -489,20 +489,17 @@ def run_service_cmd(cmd):
 def start_service():
     print("正在启动 AimiliVPN 服务...", flush=True)
     run_service_cmd("start")
-    print("已发送启动指令。")
-    time.sleep(1)
+    print("已发送启动指令，服务正在后台启动...")
 
 def stop_service():
     print("正在停止 AimiliVPN 服务...", flush=True)
     run_service_cmd("stop")
     print("已发送停止指令。")
-    time.sleep(1)
 
 def restart_service():
     print("正在重启 AimiliVPN 服务...", flush=True)
     run_service_cmd("restart")
-    print("已发送重启指令。")
-    time.sleep(1)
+    print("已发送重启指令，服务正在后台重启...")
 
 def show_logs():
     print("正在查看 AimiliVPN 日志 (按 Ctrl+C 退出)...", flush=True)
@@ -1012,17 +1009,10 @@ chmod +x /usr/bin/ml
 AUTH_FILE="${INSTALL_DIR}/vpngate_data/ui_auth.json"
 mkdir -p "${INSTALL_DIR}/vpngate_data"
 
-is_custom="n"
 if [ ! -f "$AUTH_FILE" ]; then
-    if [ -t 0 ]; then
-        echo -e "\n${YELLOW}检测到是首次安装，是否需要自定义配置网页端参数（端口/安全后缀/登录账号密码）？${PLAIN}"
-        read -p "是否自定义配置？[y/N]: " is_custom
-    else
-        echo -e "\n${YELLOW}检测到是非交互式/无TTY环境安装，已自动跳过网页端参数自定义配置，采用默认随机参数部署。${PLAIN}"
-    fi
-    
-    # Initialize defaults
+    # Initialize defaults first
     UI_PORT=8787
+    PROXY_PORT=7928
     # generate random secret suffix (12 chars alphanumeric)
     SECRET_PATH=$(python3 -c "import random, string; print(''.join(random.choices(string.ascii_letters + string.digits, k=12)))")
     # generate random password
@@ -1045,55 +1035,80 @@ while True:
         break
 ")
 
-    if [[ "$is_custom" =~ ^[Yy]$ ]]; then
-        # Step-by-step custom inputs
-        # 1. Custom port
-        while true; do
-            read -p "请输入自定义管理端口 [1-65535, 默认 8787]: " input_port
-            if [ -z "$input_port" ]; then
-                UI_PORT=8787
-                break
-            fi
-            if [[ "$input_port" =~ ^[0-9]+$ ]] && [ "$input_port" -ge 1 ] && [ "$input_port" -le 65535 ]; then
-                UI_PORT=$input_port
-                break
-            else
-                echo -e "${RED}输入错误: 端口必须是 1 到 65535 之间的数字！${PLAIN}"
-            fi
-        done
+    if [ -t 0 ]; then
+        echo -e "\n${GREEN}=======================================================${PLAIN}"
+        echo -e "${GREEN}           AimiliVPN 初始配置信息${PLAIN}"
+        echo -e "${GREEN}=======================================================${PLAIN}"
+        echo -e "  管理端口:    ${YELLOW}${UI_PORT}${PLAIN}"
+        echo -e "  安全后缀:    ${YELLOW}${SECRET_PATH}${PLAIN}"
+        echo -e "  登录账号:    ${YELLOW}${UI_USERNAME}${PLAIN}"
+        echo -e "  登录密码:    ${YELLOW}${UI_PASSWORD}${PLAIN}"
+        echo -e "${GREEN}=======================================================${PLAIN}"
+        echo -e "\n${YELLOW}以上参数已随机生成，直接回车即可使用默认值。${PLAIN}"
+        read -p "是否需要自定义修改这些参数？[y/N]: " is_custom
         
-        # 2. Custom suffix
-        while true; do
-            read -p "请输入网页登录自定义安全后缀 [字母与数字组合, 默认随机]: " input_suffix
-            if [ -z "$input_suffix" ]; then
-                break
-            fi
-            if [[ "$input_suffix" =~ ^[A-Za-z0-9]+$ ]]; then
-                SECRET_PATH=$input_suffix
-                break
-            else
-                echo -e "${RED}输入错误: 后缀仅能由英文字母和数字组成！${PLAIN}"
-            fi
-        done
-        
-        # 3. Custom login username and password
-        read -p "请输入登录账号 [默认 $UI_USERNAME]: " input_user
-        if [ -n "$input_user" ]; then
-            UI_USERNAME=$input_user
+        if [[ "$is_custom" =~ ^[Yy]$ ]]; then
+            echo -e "\n${BLUE}--- 第 1/4 步：管理端口 ---${PLAIN}"
+            while true; do
+                read -p "请输入管理端口 [1-65535，回车默认 ${UI_PORT}]: " input_port
+                if [ -z "$input_port" ]; then
+                    break
+                fi
+                if [[ "$input_port" =~ ^[0-9]+$ ]] && [ "$input_port" -ge 1 ] && [ "$input_port" -le 65535 ]; then
+                    UI_PORT=$input_port
+                    break
+                else
+                    echo -e "${RED}输入错误: 端口必须是 1 到 65535 之间的数字！${PLAIN}"
+                fi
+            done
+            
+            echo -e "\n${BLUE}--- 第 2/4 步：安全后缀 ---${PLAIN}"
+            echo -e "安全后缀用于防止暴力扫描登录页，建议使用随机字符串。"
+            while true; do
+                read -p "请输入安全后缀 [字母数字组合，回车默认 ${SECRET_PATH}]: " input_suffix
+                if [ -z "$input_suffix" ]; then
+                    break
+                fi
+                if [[ "$input_suffix" =~ ^[A-Za-z0-9]+$ ]]; then
+                    SECRET_PATH=$input_suffix
+                    break
+                else
+                    echo -e "${RED}输入错误: 后缀只能由英文字母和数字组成！${PLAIN}"
+                fi
+            done
+            
+            echo -e "\n${BLUE}--- 第 3/4 步：登录账号 ---${PLAIN}"
+            while true; do
+                read -p "请输入登录账号 [回车默认 ${UI_USERNAME}]: " input_user
+                if [ -z "$input_user" ]; then
+                    break
+                fi
+                if [[ "$input_user" =~ ^[A-Za-z0-9_]+$ ]]; then
+                    UI_USERNAME=$input_user
+                    break
+                else
+                    echo -e "${RED}输入错误: 账号只能包含字母、数字和下划线！${PLAIN}"
+                fi
+            done
+            
+            echo -e "\n${BLUE}--- 第 4/4 步：登录密码 ---${PLAIN}"
+            while true; do
+                read -p "请输入登录密码 [至少6位，回车默认 ${UI_PASSWORD}]: " input_pass
+                if [ -z "$input_pass" ]; then
+                    break
+                fi
+                if [ ${#input_pass} -ge 6 ]; then
+                    UI_PASSWORD=$input_pass
+                    break
+                else
+                    echo -e "${RED}输入错误: 密码长度不能少于 6 位！${PLAIN}"
+                fi
+            done
+            
+            echo -e "\n${GREEN}配置已更新！${PLAIN}"
         fi
-        
-        while true; do
-            read -p "请输入登录密码 [默认随机生成, 建议包含字母、数字与符号]: " input_pass
-            if [ -z "$input_pass" ]; then
-                break
-            fi
-            if [ ${#input_pass} -ge 4 ]; then
-                UI_PASSWORD=$input_pass
-                break
-            else
-                echo -e "${RED}输入错误: 密码长度不能少于 4 位！${PLAIN}"
-            fi
-        done
+    else
+        echo -e "\n${YELLOW}检测到是非交互式/无TTY环境安装，已自动采用随机参数部署。${PLAIN}"
     fi
 
     # Write config JSON. Values are passed as argv to avoid breaking Python code

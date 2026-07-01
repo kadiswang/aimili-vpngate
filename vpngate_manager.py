@@ -3121,11 +3121,11 @@ def main() -> None:
     gateway_ready = False
     is_ipv6 = ":" in LOCAL_PROXY_HOST
     af = socket.AF_INET6 if is_ipv6 else socket.AF_INET
-    for _ in range(30):
+    for _ in range(10):
         s = None
         try:
             s = socket.socket(af, socket.SOCK_STREAM)
-            s.settimeout(0.5)
+            s.settimeout(0.3)
             connect_host = LOCAL_PROXY_HOST
             if connect_host in ("::", "0.0.0.0", ""):
                 connect_host = "::1" if is_ipv6 else "127.0.0.1"
@@ -3138,7 +3138,7 @@ def main() -> None:
                     try:
                         s.close()
                         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                        s.settimeout(0.5)
+                        s.settimeout(0.3)
                         s.connect(("127.0.0.1", LOCAL_PROXY_PORT))
                         gateway_ready = True
                         break
@@ -3146,7 +3146,7 @@ def main() -> None:
                         pass
                 raise
         except Exception:
-            time.sleep(0.5)
+            time.sleep(0.2)
         finally:
             if s is not None:
                 try:
