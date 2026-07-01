@@ -18,6 +18,11 @@ IP_CACHE_FILE = DATA_DIR / "ip_cache.json"
 
 ip_cache_lock = threading.RLock()
 
+# 可配置的代理地址，供 fetch_via_socks5 使用，默认 127.0.0.1:7928
+# 由 vpngate_manager 等模块导入后覆盖
+SOCKS5_PROXY_HOST = "127.0.0.1"
+SOCKS5_PROXY_PORT = 7928
+
 
 COUNTRY_TRANSLATIONS = {
     "Japan": "日本",
@@ -610,8 +615,8 @@ def fetch_trust_scores(nodes: list[dict[str, Any]]) -> None:
             import http.client
             import ssl
 
-            socks_host = "127.0.0.1"
-            socks_port = 7928
+            socks_host = SOCKS5_PROXY_HOST
+            socks_port = SOCKS5_PROXY_PORT
             target_host = "ip.net.coffee"
             target_port = 443
 

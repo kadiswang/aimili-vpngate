@@ -98,6 +98,9 @@ OPENVPN_AUTH_USER = os.environ.get("OPENVPN_AUTH_USER", "vpn")
 OPENVPN_AUTH_PASS = os.environ.get("OPENVPN_AUTH_PASS", "vpn")
 LOCAL_PROXY_HOST = os.environ.get("LOCAL_PROXY_HOST", "127.0.0.1")
 LOCAL_PROXY_PORT = env_int("LOCAL_PROXY_PORT", 7928, 1, 65535)
+# 将代理地址同步到 vpn_utils，使 fetch_via_socks5 使用统一配置
+vpn_utils.SOCKS5_PROXY_HOST = LOCAL_PROXY_HOST
+vpn_utils.SOCKS5_PROXY_PORT = LOCAL_PROXY_PORT
 UI_HOST = os.environ.get("UI_HOST", "::")
 UI_PORT = env_int("UI_PORT", 8790, 1, 65535)
 INVALID_BACKOFF_SECONDS = env_int("INVALID_BACKOFF_SECONDS", 30 * 60, 1)
