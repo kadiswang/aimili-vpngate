@@ -3548,6 +3548,163 @@ INDEX_HTML = r"""<!doctype html>
       .modal { padding: 12px; align-items: flex-end; }
       .modal-content { width: 100%; max-width: none; border-radius: 16px 16px 0 0; max-height: 90vh; }
     }
+
+    /* === 移动端优化：节点列表卡片式布局 === */
+    @media (max-width: 768px) {
+      .table-wrapper { overflow-x: visible; }
+      .table-container { overflow-x: visible; }
+
+      table, thead, tbody, th, td, tr { display: block; width: 100%; }
+
+      thead { display: none; }
+
+      tbody tr {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        margin-bottom: 12px;
+        background: var(--surface);
+        padding: 14px 16px;
+        box-shadow: var(--shadow-sm);
+      }
+      [data-theme="dark"] tbody tr { background: var(--surface); }
+      tbody tr:last-child { border-bottom: 1px solid var(--border); }
+      tbody tr:hover td { background: transparent; }
+
+      tbody tr.active-row {
+        border-color: var(--primary);
+        background: linear-gradient(135deg, rgba(99,102,241,0.06), rgba(99,102,241,0.02));
+      }
+
+      tbody tr.empty-row {
+        border: none;
+        padding: 0;
+        background: transparent;
+        box-shadow: none;
+      }
+      tbody tr.empty-row td {
+        display: table-cell !important;
+        padding: 40px 0 !important;
+        text-align: center;
+      }
+      tbody tr.empty-row td::before {
+        display: none;
+      }
+
+      td {
+        border: none;
+        padding: 6px 0;
+        background: transparent !important;
+        display: flex !important;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        font-size: 13px;
+      }
+
+      td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: var(--text-secondary);
+        font-size: 12px;
+        flex-shrink: 0;
+        min-width: 60px;
+      }
+
+      td .badge, td .latency-val, td .health-badge {
+        margin-left: auto;
+      }
+
+      td:last-child { padding-bottom: 0; }
+      td:last-child::before { content: ""; display: none; }
+      td:last-child .connect-btn {
+        width: 100%;
+        height: 40px;
+        justify-content: center;
+        font-size: 13px;
+      }
+
+      td .mono { word-break: break-all; text-align: right; }
+
+      .table-actions {
+        width: 100%;
+        display: flex;
+        gap: 8px;
+      }
+      .table-actions .test-btn,
+      .table-actions .connect-btn {
+        flex: 1;
+        justify-content: center;
+        height: 38px;
+      }
+    }
+
+    /* === 移动端优化：工具栏筛选器 === */
+    @media (max-width: 768px) {
+      .toolbar {
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .toolbar select, .toolbar input, .toolbar button {
+        height: 40px;
+        font-size: 13px;
+        flex: 1;
+        min-width: calc(50% - 4px);
+      }
+    }
+    @media (max-width: 480px) {
+      .toolbar select, .toolbar input, .toolbar button {
+        min-width: 100%;
+      }
+    }
+
+    /* === 移动端优化：按钮点击区域 === */
+    @media (max-width: 768px) {
+      button, .btn {
+        min-height: 40px;
+        padding: 0 14px;
+        font-size: 13px;
+      }
+      .connect-btn, .test-btn {
+        min-height: 36px;
+        padding: 0 12px;
+        font-size: 12px;
+      }
+      .sidebar-theme-btn { min-height: 40px; }
+      .nav-item { padding: 12px 14px; min-height: 42px; align-items: center; }
+      .mobile-menu-btn { width: 42px; height: 42px; }
+    }
+
+    /* === 移动端优化：内容内边距 === */
+    @media (max-width: 768px) {
+      header { padding: 12px 16px 8px; }
+      .content-body { padding: 12px 14px 20px; }
+      .active-node-section { margin-bottom: 16px; }
+      .favorites-panel { padding: 14px; }
+      .table-wrapper { border-radius: 0; border-left: none; border-right: none; }
+    }
+
+    /* === 移动端优化：统计卡片 === */
+    @media (max-width: 768px) {
+      .stats-row {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+      }
+      .stats-row .stat-card { padding: 14px; }
+      .stat-card .stat-value { font-size: 20px; }
+    }
+    @media (max-width: 480px) {
+      .stats-row { grid-template-columns: 1fr; }
+    }
+
+    /* === 移动端优化：字体大小与间距 === */
+    @media (max-width: 768px) {
+      body { font-size: 14px; }
+      .brand h1 { font-size: 16px; }
+      .active-card-value { font-size: 20px; }
+      .option-card { padding: 12px; }
+      .pagination-container { padding: 12px 14px; gap: 10px; }
+      .pagination-container > div { flex: 1; text-align: center; }
+    }
   </style>
 </head>
 <body>
@@ -4451,7 +4608,7 @@ function render(){
 
   // Render table rows
   if (currentPageNodes.length === 0) {
-    $("rows").innerHTML = `<tr style="display: table-row !important;"><td colspan="7" style="display: table-cell !important; text-align: center; color: var(--text-secondary); padding: 40px 0;">未找到符合过滤条件的备选节点。</td></tr>`;
+    $("rows").innerHTML = `<tr class="empty-row" style="display: table-row !important;"><td colspan="8" style="display: table-cell !important; text-align: center; color: var(--text-secondary); padding: 40px 0;">未找到符合过滤条件的备选节点。</td></tr>`;
   } else {
     $("rows").innerHTML=currentPageNodes.map(n=>{
       if (!n) return '';
@@ -4484,16 +4641,16 @@ function render(){
         : `<button class="test-btn" style="color: var(--text-secondary); border-color: var(--border-color); padding: 0 8px; height: 30px;" onclick="toggleFavorite('${esc(n.id)}', event)">☆ 收藏</button>`;
 
       return `<tr ${rowClass} style="display: table-row !important;">
-        <td style="display: table-cell !important; white-space: nowrap;"><span class="badge ${badgeClass}">${badgeText}</span></td>
-        <td class="mono" style="white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; display: table-cell !important;" title="${esc(n.ip||n.remote_host)}:${n.remote_port||""}">${esc(n.ip||n.remote_host)}:${n.remote_port||""}</td>
-        <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: table-cell !important;" title="${esc(displayLocation)}">${esc(displayLocation)}</td>
-        <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: table-cell !important;" title="${esc(n.owner||n.as_name||"-")}">${esc(n.owner||n.as_name||"-")}</td>
-        <td style="white-space: nowrap; max-width: 110px; overflow: hidden; text-overflow: ellipsis; display: table-cell !important;" title="${esc(translateIpType(n.ip_type))}">${esc(translateIpType(n.ip_type))}</td>
-        <td style="white-space: nowrap; display: table-cell !important;">${latencyText}</td>
-        <td style="white-space: nowrap; display: table-cell !important;">
+        <td data-label="状态" style="display: table-cell !important; white-space: nowrap;"><span class="badge ${badgeClass}">${badgeText}</span></td>
+        <td data-label="IP地址" class="mono" style="white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; display: table-cell !important;" title="${esc(n.ip||n.remote_host)}:${n.remote_port||""}">${esc(n.ip||n.remote_host)}:${n.remote_port||""}</td>
+        <td data-label="位置" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: table-cell !important;" title="${esc(displayLocation)}">${esc(displayLocation)}</td>
+        <td data-label="运营主体" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: table-cell !important;" title="${esc(n.owner||n.as_name||"-")}">${esc(n.owner||n.as_name||"-")}</td>
+        <td data-label="IP类型" style="white-space: nowrap; max-width: 110px; overflow: hidden; text-overflow: ellipsis; display: table-cell !important;" title="${esc(translateIpType(n.ip_type))}">${esc(translateIpType(n.ip_type))}</td>
+        <td data-label="延迟" style="white-space: nowrap; display: table-cell !important;">${latencyText}</td>
+        <td data-label="健康度" style="white-space: nowrap; display: table-cell !important;">
           <span class="health-badge ${getHealthClass(getHealthScore(n))}">${getHealthScore(n)}</span>
         </td>
-        <td style="display: table-cell !important;">
+        <td data-label="操作" style="display: table-cell !important;">
           <div class="table-actions">
             ${favBtn}
             ${connectBtn}
@@ -4569,7 +4726,7 @@ function renderOverviewNodes(activeNode) {
   label.textContent = parts.join(" + ") + " (" + filtered.length + " 个节点)";
 
   if (filtered.length === 0) {
-    container.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-secondary);padding:30px 0;">暂无符合条件的节点</td></tr>';
+    container.innerHTML = '<tr class="empty-row"><td colspan="7" style="text-align:center;color:var(--text-secondary);padding:30px 0;">暂无符合条件的节点</td></tr>';
     return;
   }
 
@@ -4586,13 +4743,13 @@ function renderOverviewNodes(activeNode) {
       : '<button class="connect-btn" ' + ((isUnavailable || state.is_connecting) ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : '') + ' onclick="connectNode(\'' + esc(n.id) + '\')">切换</button>';
 
     return '<tr' + (isActive ? ' class="active-row"' : '') + ' style="display:table-row!important;">' +
-      '<td style="display:table-cell!important;white-space:nowrap;"><span class="badge ' + badgeClass + '">' + badgeText + '</span></td>' +
-      '<td class="mono" style="white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis;display:table-cell!important;" title="' + esc(n.ip||n.remote_host) + ':' + (n.remote_port||"") + '">' + esc(n.ip||n.remote_host) + ':' + (n.remote_port||"") + '</td>' +
-      '<td style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:table-cell!important;" title="' + esc(displayLocation) + '">' + esc(displayLocation) + '</td>' +
-      '<td style="white-space:nowrap;display:table-cell!important;">' + esc(translateIpType(n.ip_type)) + '</td>' +
-      '<td style="white-space:nowrap;display:table-cell!important;">' + latencyText + '</td>' +
-      '<td style="white-space:nowrap;display:table-cell!important;"><span class="health-badge ' + getHealthClass(getHealthScore(n)) + '">' + getHealthScore(n) + '</span></td>' +
-      '<td style="display:table-cell!important;">' + connectBtn + '</td>' +
+      '<td data-label="状态" style="display:table-cell!important;white-space:nowrap;"><span class="badge ' + badgeClass + '">' + badgeText + '</span></td>' +
+      '<td data-label="IP地址" class="mono" style="white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis;display:table-cell!important;" title="' + esc(n.ip||n.remote_host) + ':' + (n.remote_port||"") + '">' + esc(n.ip||n.remote_host) + ':' + (n.remote_port||"") + '</td>' +
+      '<td data-label="位置" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:table-cell!important;" title="' + esc(displayLocation) + '">' + esc(displayLocation) + '</td>' +
+      '<td data-label="IP类型" style="white-space:nowrap;display:table-cell!important;">' + esc(translateIpType(n.ip_type)) + '</td>' +
+      '<td data-label="延迟" style="white-space:nowrap;display:table-cell!important;">' + latencyText + '</td>' +
+      '<td data-label="健康度" style="white-space:nowrap;display:table-cell!important;"><span class="health-badge ' + getHealthClass(getHealthScore(n)) + '">' + getHealthScore(n) + '</span></td>' +
+      '<td data-label="操作" style="display:table-cell!important;">' + connectBtn + '</td>' +
       '</tr>';
   }).join("");
 }
