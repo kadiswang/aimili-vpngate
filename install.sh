@@ -83,7 +83,7 @@ fi
 # 4. Clone or pull the repository
 INSTALL_DIR="/opt/aimilivpn"
 # 默认部署分支（开发分支设为对应分支名；main 分支设为 main）
-DEFAULT_DEPLOY_BRANCH="260621-refactor-ui-light-theme"
+DEFAULT_DEPLOY_BRANCH="trae/agent-AB88d6"
 
 # 自动检测本地已安装版本当前所在的分支
 CURRENT_BRANCH=""
