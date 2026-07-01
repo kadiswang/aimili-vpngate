@@ -33,12 +33,12 @@ try:
     from vpn_utils import env_int as _env_int, env_bool as _env_bool, env_str as _env_str
 except ImportError:
     COUNTRY_TRANSLATIONS = {}
-    def safe_int(val, default=0):
+    def safe_int(val: Any, default: int = 0) -> int:
         try:
             return int(val)
         except (ValueError, TypeError):
             return default
-    def safe_float(val, default=0.0):
+    def safe_float(val: Any, default: float = 0.0) -> float:
         try:
             return float(val)
         except (ValueError, TypeError):
