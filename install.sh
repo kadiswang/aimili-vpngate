@@ -576,7 +576,6 @@ def update_service():
         time.sleep(2)
 
 def uninstall_service():
-    # 清屏并显示卸载提示
     print("\033[H\033[J", end="", flush=True)
     print("=======================================================")
     print("              AimiliVPN 完全卸载程序")
@@ -586,19 +585,56 @@ def uninstall_service():
     if confirm.lower() == 'y':
         print()
         print("正在完全卸载 AimiliVPN...", flush=True)
-        stop_service()
-        if shutil.which("systemctl"):
-            subprocess.run(["systemctl", "disable", "aimilivpn.service"])
-            try:
-                os.unlink("/lib/systemd/system/aimilivpn.service")
-            except Exception:
-                pass
-        elif shutil.which("rc-service"):
-            subprocess.run(["rc-update", "del", "aimilivpn"])
-            try:
-                os.unlink("/etc/init.d/aimilivpn")
-            except Exception:
-                pass
+        print("[1/4] 正在停止服务...", flush=True)
+        try:
+            if shutil.which("systemctl"):
+                subprocess.Popen(["systemctl", "stop", "aimilivpn.service"])
+                time.sleep(0.5)
+                subprocess.run(["systemctl", "disable", "aimilivpn.service"],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                try:
+                    os.unlink("/lib/systemd/system/aimilivpn.service")
+                except Exception:
+                    pass
+                try:
+                    os.unlink("/etc/systemd/system/aimilivpn.service")
+                except Exception:
+                    pass
+                subprocess.run(["systemctl", "daemon-reload"],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            elif shutil.which("rc-service"):
+                subprocess.run(["rc-update", "del", "aimilivpn"],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                try:
+                    os.unlink("/etc/init.d/aimilivpn")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        print("[2/4] 正在清理进程...", flush=True)
+        try:
+            subprocess.run(["pkill", "-f", "vpngate_manager.py"],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
+        try:
+            subprocess.run(["pkill", "-f", "openvpn"],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
+        time.sleep(0.3)
+        print("[3/4] 正在清理路由规则...", flush=True)
+        try:
+            subprocess.run(["ip", "rule", "del", "table", "100"],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
+        try:
+            subprocess.run(["ip", "route", "flush", "table", "100"],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
+        print("[4/4] 正在删除文件...", flush=True)
         try:
             os.unlink("/usr/bin/ml")
         except Exception:
