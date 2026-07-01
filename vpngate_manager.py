@@ -3123,10 +3123,19 @@ INDEX_HTML = r"""<!doctype html>
 
     .active-card-row2 {
       display: flex;
-      gap: 16px;
+      gap: 12px;
       font-size: 13px;
       color: var(--text-muted);
       flex-wrap: wrap;
+    }
+
+    .active-card-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 12px;
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
     }
 
     .active-card-row2 strong { color: var(--text); font-weight: 600; }
@@ -3410,6 +3419,12 @@ INDEX_HTML = r"""<!doctype html>
       .header-actions { width: 100%; flex-wrap: wrap; }
       main { padding: 12px 12px; }
       .active-card { flex-direction: column; align-items: flex-start; }
+      .active-card .btn-danger { width: 100%; justify-content: center; margin-top: 8px; }
+      .active-card-info { width: 100%; }
+      .active-card-details { min-width: 0; }
+      .active-card-value { font-size: 16px; word-break: break-all; }
+      .active-card-meta { gap: 4px 8px; }
+      .active-card-meta span { display: inline-block; white-space: normal; }
       .option-group { grid-template-columns: 1fr; }
     }
 
@@ -3614,7 +3629,11 @@ INDEX_HTML = r"""<!doctype html>
         align-items: center;
         gap: 12px;
         font-size: 13px;
+        white-space: normal !important;
+        overflow: visible !important;
+        max-width: none !important;
       }
+      td[data-label] * { white-space: normal !important; max-width: none !important; word-break: break-word; }
 
       td::before {
         content: attr(data-label);
@@ -3638,7 +3657,12 @@ INDEX_HTML = r"""<!doctype html>
         font-size: 13px;
       }
 
-      td .mono { word-break: break-all; text-align: right; }
+      td .mono { word-break: break-all; text-align: right; white-space: normal; }
+      td[data-label] .mono { word-break: break-word; text-align: right; white-space: normal; }
+      td[data-label="IP地址"],
+      td[data-label="IP地址"] * { overflow-wrap: anywhere; white-space: normal !important; max-width: none !important; }
+      td[data-label="位置"] { white-space: normal !important; overflow-wrap: break-word; }
+      td[data-label="IP类型"] { white-space: normal !important; }
 
       .table-actions {
         width: 100%;
@@ -3754,9 +3778,34 @@ INDEX_HTML = r"""<!doctype html>
       .brand h1 { font-size: 16px; }
       .active-card-value { font-size: 20px; }
       .option-card { padding: 12px; }
-      .pagination-container { padding: 12px 14px; gap: 10px; }
+      .pagination-container { padding: 12px 14px; gap: 10px; flex-direction: column; }
       .pagination-container > div { flex: 1; text-align: center; }
+      .pagination-container .connect-btn { flex: 1; justify-content: center; }
     }
+
+    /* === 移动端优化：收藏面板 === */
+    @media (max-width: 768px) {
+      #favorites_panel > div > div:first-child { flex-direction: column; align-items: flex-start !important; }
+      #favorites_panel button { width: 100%; justify-content: center; }
+    }
+
+    /* === 移动端优化：网关弹窗 === */
+    @media (max-width: 600px) {
+      #gateway_modal .modal-content { width: 100%; max-width: 100%; border-radius: 16px 16px 0 0; padding: 20px 16px; }
+      #gateway_services_list > div { padding: 10px 12px; }
+    }
+
+    /* === 移动端优化：日志弹窗 === */
+    @media (max-width: 768px) {
+      #logs_modal .modal-content { width: 100%; max-width: 100%; border-radius: 16px 16px 0 0; padding: 20px 16px; }
+      #logs_modal > div > div:first-child { flex-wrap: wrap; }
+      #logs_modal > div > div:first-child > div { margin-left: 0; width: 100%; }
+      #logs_modal select { width: 100%; }
+      #log_terminal_container { height: 300px; font-size: 11px; }
+      #logs_modal > div > div:last-child { flex-direction: column; gap: 8px; }
+      #logs_modal > div > div:last-child button { width: 100%; }
+    }
+
   </style>
 </head>
 <body>
@@ -4525,7 +4574,7 @@ function render(){
               <span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border-color: rgba(245, 158, 11, 0.3);"><span class="badge-pulse" style="background: #f59e0b;"></span>正在连接</span>
               <strong>${esc(state.active_node_latency || '正在连接...')}</strong>
             </div>
-            <div class="active-card-meta" style="margin-top: 4px;">
+            <div class="active-card-meta">
               ${esc(state.last_check_message || '正在与 VPN 节点建立加密隧道，请稍候...')}
             </div>
           </div>
@@ -4550,11 +4599,11 @@ function render(){
             <div class="active-card-value mono" style="font-size: 20px; margin-top: 2px;">
               ${esc(activeNode.ip || activeNode.remote_host)}:${activeNode.remote_port || ""}
             </div>
-            <div class="active-card-meta" style="margin-top: 4px;">
+            <div class="active-card-meta">
               <span>物理位置: <strong>${esc(displayLocation)}</strong></span>
-              <span style="margin-left: 12px;">延时: <strong>${latencyText}</strong></span>
-              <span style="margin-left: 12px;">运营主体: <strong>${esc(activeNode.owner || activeNode.as_name || "-")}</strong></span>
-              <span style="margin-left: 12px;">IP 类型: <strong>${esc(translateIpType(activeNode.ip_type))}</strong></span>
+              <span>延时: <strong>${latencyText}</strong></span>
+              <span>运营主体: <strong>${esc(activeNode.owner || activeNode.as_name || "-")}</strong></span>
+              <span>IP 类型: <strong>${esc(translateIpType(activeNode.ip_type))}</strong></span>
             </div>
           </div>
         </div>
