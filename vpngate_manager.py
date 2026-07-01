@@ -83,32 +83,7 @@ class DualStackHTTPServer(ThreadingHTTPServer):
 
 import vpn_utils
 import proxy_server
-
-def env_int(name: str, default: int, min_value: int | None = None, max_value: int | None = None) -> int:
-    raw = os.environ.get(name)
-    try:
-        value = int(raw) if raw not in (None, "") else default
-    except (TypeError, ValueError):
-        print(f"[配置警告] 环境变量 {name}={raw!r} 不是有效整数，使用默认值 {default}", flush=True)
-        value = default
-    if min_value is not None and value < min_value:
-        print(f"[配置警告] 环境变量 {name}={value} 小于允许值 {min_value}，使用默认值 {default}", flush=True)
-        return default
-    if max_value is not None and value > max_value:
-        print(f"[配置警告] 环境变量 {name}={value} 大于允许值 {max_value}，使用默认值 {default}", flush=True)
-        return default
-    return value
-
-def bounded_int(value: Any, default: int, min_value: int | None = None, max_value: int | None = None) -> int:
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError):
-        return default
-    if min_value is not None and parsed < min_value:
-        return default
-    if max_value is not None and parsed > max_value:
-        return default
-    return parsed
+from vpn_utils import env_int, bounded_int
 
 API_URL = "https://www.vpngate.net/api/iphone/"
 FETCH_INTERVAL_SECONDS = env_int("FETCH_INTERVAL_SECONDS", 1260, 1)

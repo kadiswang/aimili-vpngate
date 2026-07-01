@@ -155,6 +155,45 @@ def parse_positive_int(value: str | None, default: int) -> int:
     except (TypeError, ValueError):
         return default
 
+def env_int(name: str, default: int, min_value: int | None = None, max_value: int | None = None) -> int:
+    raw = os.environ.get(name)
+    try:
+        value = int(raw) if raw not in (None, "") else default
+    except (TypeError, ValueError):
+        print(f"[配置警告] 环境变量 {name}={raw!r} 不是有效整数，使用默认值 {default}", flush=True)
+        value = default
+    if min_value is not None and value < min_value:
+        print(f"[配置警告] 环境变量 {name}={value} 小于允许值 {min_value}，使用默认值 {default}", flush=True)
+        return default
+    if max_value is not None and value > max_value:
+        print(f"[配置警告] 环境变量 {name}={value} 大于允许值 {max_value}，使用默认值 {default}", flush=True)
+        return default
+    return value
+
+
+def env_bool(name: str, default: bool = True) -> bool:
+    val = os.environ.get(name)
+    if val is None:
+        return default
+    return val.strip().lower() not in ("0", "false", "no", "off")
+
+
+def env_str(name: str, default: str) -> str:
+    return os.environ.get(name, default).strip()
+
+
+def bounded_int(value: Any, default: int, min_value: int | None = None, max_value: int | None = None) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    if min_value is not None and parsed < min_value:
+        return default
+    if max_value is not None and parsed > max_value:
+        return default
+    return parsed
+
+
 def parse_proxy_endpoint(value: str, default_port: int) -> tuple[str | None, int | None]:
     value = value.strip()
     if not value:

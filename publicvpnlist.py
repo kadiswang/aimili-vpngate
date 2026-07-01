@@ -30,6 +30,7 @@ from pathlib import Path
 
 try:
     from vpn_utils import COUNTRY_TRANSLATIONS, safe_int as _safe_int, safe_float as _safe_float
+    from vpn_utils import env_int as _env_int, env_bool as _env_bool, env_str as _env_str
 except ImportError:
     COUNTRY_TRANSLATIONS = {}
     def _safe_int(val, default=0):
@@ -42,25 +43,19 @@ except ImportError:
             return float(val)
         except (ValueError, TypeError):
             return default
-
-
-def _env_bool(name: str, default: bool = True) -> bool:
-    val = os.environ.get(name)
-    if val is None:
-        return default
-    return val.strip().lower() not in ("0", "false", "no", "off")
-
-
-def _env_int(name: str, default: int, minimum: int = 0) -> int:
-    try:
-        val = int(os.environ.get(name, default))
-        return max(minimum, val)
-    except (ValueError, TypeError):
-        return default
-
-
-def _env_str(name: str, default: str) -> str:
-    return os.environ.get(name, default).strip()
+    def _env_int(name: str, default: int, minimum: int = 0) -> int:
+        try:
+            val = int(os.environ.get(name, default))
+            return max(minimum, val)
+        except (ValueError, TypeError):
+            return default
+    def _env_bool(name: str, default: bool = True) -> bool:
+        val = os.environ.get(name)
+        if val is None:
+            return default
+        return val.strip().lower() not in ("0", "false", "no", "off")
+    def _env_str(name: str, default: str) -> str:
+        return os.environ.get(name, default).strip()
 
 
 def _fetch_html(url: str, timeout: int = 15, referer: str | None = None) -> str | None:
