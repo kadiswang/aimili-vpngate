@@ -11,20 +11,10 @@ import urllib.parse
 import time
 from typing import Any
 
-def parse_positive_int(value: str | None, default: int) -> int:
-    try:
-        return max(1, int(value or default))
-    except (TypeError, ValueError):
-        return default
+from vpn_utils import parse_int, parse_positive_int
 
 MAX_PROXY_CONNECTIONS = parse_positive_int(os.environ.get("LOCAL_PROXY_MAX_CONNECTIONS"), 256)
 proxy_connection_sem = threading.BoundedSemaphore(MAX_PROXY_CONNECTIONS)
-
-def parse_int(value: Any) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return 0
 
 def recv_exact(sock: socket.socket, size: int) -> bytes:
     data = b""

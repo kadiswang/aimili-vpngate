@@ -46,6 +46,9 @@ def _ipv4_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
     return _orig_getaddrinfo(host, port, family, type, proto, flags)
 socket.getaddrinfo = _ipv4_getaddrinfo
 
+import vpn_utils
+from vpn_utils import safe_int as _safe_int, safe_float as _safe_float, parse_int
+
 class DualStackHTTPServer(ThreadingHTTPServer):
     def __init__(self, server_address, RequestHandlerClass, bind_and_activate=True):
         host, port = server_address
@@ -558,12 +561,6 @@ def clear_active_connection_state(message: str) -> None:
         last_check_message=message,
     )
 
-def parse_int(value: Any) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return 0
-
 def proxy_basic_auth_header(username: str, password: str) -> str:
     token = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
     return f"Proxy-Authorization: Basic {token}\r\n"
@@ -1068,19 +1065,6 @@ def _merge_nodes(
             candidates.append(node)
             seen_ips[ip] = node
 
-
-def _safe_float(val: Any, default: float = 0.0) -> float:
-    try:
-        return float(val)
-    except (ValueError, TypeError):
-        return default
-
-
-def _safe_int(val: Any, default: int = 0) -> int:
-    try:
-        return int(val)
-    except (ValueError, TypeError):
-        return default
 
 def cached_nodes() -> list[dict[str, Any]]:
     return read_nodes()

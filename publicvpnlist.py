@@ -29,9 +29,19 @@ from typing import Any
 from pathlib import Path
 
 try:
-    from vpn_utils import COUNTRY_TRANSLATIONS
+    from vpn_utils import COUNTRY_TRANSLATIONS, safe_int as _safe_int, safe_float as _safe_float
 except ImportError:
     COUNTRY_TRANSLATIONS = {}
+    def _safe_int(val, default=0):
+        try:
+            return int(val)
+        except (ValueError, TypeError):
+            return default
+    def _safe_float(val, default=0.0):
+        try:
+            return float(val)
+        except (ValueError, TypeError):
+            return default
 
 
 def _env_bool(name: str, default: bool = True) -> bool:
@@ -349,20 +359,6 @@ def fetch_publicvpnlist_nodes() -> list[dict[str, Any]]:
 
     print(f"[PublicVPNList] 完成，共获取 {len(all_nodes)} 个节点", flush=True)
     return all_nodes
-
-
-def _safe_float(val: Any, default: float = 0.0) -> float:
-    try:
-        return float(val)
-    except (ValueError, TypeError):
-        return default
-
-
-def _safe_int(val: Any, default: int = 0) -> int:
-    try:
-        return int(val)
-    except (ValueError, TypeError):
-        return default
 
 
 def _config_dir() -> Path:

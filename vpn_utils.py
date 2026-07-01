@@ -18,6 +18,36 @@ IP_CACHE_FILE = DATA_DIR / "ip_cache.json"
 
 ip_cache_lock = threading.RLock()
 
+
+ERR_CODE_API_UNKNOWN = 1001
+ERR_CODE_LOCAL_DNS_BROKEN = 1006
+ERR_CODE_API_DOMAIN_BLOCKED = 1007
+ERR_CODE_API_IP_BLOCKED_OR_DOWN = 1008
+ERR_CODE_VPS_OUTBOUND_BLOCKED = 1009
+ERR_CODE_API_TLS_INTERFERENCE = 1010
+
+ERR_CODE_OVPN_CMD_NOT_FOUND = 2001
+ERR_CODE_OVPN_PERMISSION_DENIED = 2002
+ERR_CODE_OVPN_DNS_RESOLVE = 2003
+ERR_CODE_OVPN_NODE_UNREACHABLE = 2004
+ERR_CODE_OVPN_AUTH_FAILED = 2005
+ERR_CODE_OVPN_TLS_BLOCKED = 2006
+ERR_CODE_OVPN_ROUTE_NOPULL = 2007
+ERR_CODE_OVPN_TUN_NOT_AVAILABLE = 2009
+ERR_CODE_OVPN_START_FAILED = 2002
+ERR_CODE_OVPN_UNKNOWN = 2010
+
+ERR_CODE_ROUTE_FORWARD_DISABLED = 3001
+ERR_CODE_ROUTE_TABLE_ADD_FAILED = 3003
+ERR_CODE_ROUTE_DEV_NOT_FOUND = 3004
+ERR_CODE_PORT_IN_USE = 3005
+ERR_CODE_PROXY_BIND_TUN_PERM_DENIED = 3006
+ERR_CODE_FIREWALL_BLOCKING_FORWARD = 3007
+ERR_CODE_ROUTE_RP_FILTER_STRICT = 3008
+ERR_CODE_TUN_DEV_NOT_FOUND = 3009
+ERR_CODE_TUN_PERMISSION_DENIED = 3010
+
+
 COUNTRY_TRANSLATIONS = {
     "Japan": "日本",
     "South Korea": "韩国",
@@ -95,10 +125,34 @@ COUNTRY_TRANSLATIONS = {
     "Laos": "老挝",
 }
 
-def _safe_int(val: Any, default: int = 0) -> int:
+def safe_int(val: Any, default: int = 0) -> int:
     try:
         return int(val)
     except (ValueError, TypeError):
+        return default
+
+
+_safe_int = safe_int
+
+
+def safe_float(val: Any, default: float = 0.0) -> float:
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+
+def parse_int(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def parse_positive_int(value: str | None, default: int) -> int:
+    try:
+        return max(1, int(value or default))
+    except (TypeError, ValueError):
         return default
 
 def parse_proxy_endpoint(value: str, default_port: int) -> tuple[str | None, int | None]:
@@ -381,9 +435,11 @@ def save_ip_cache(cache: dict[str, dict[str, Any]]) -> None:
     with ip_cache_lock:
         try:
             DATA_DIR.mkdir(exist_ok=True, parents=True)
-            IP_CACHE_FILE.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
-        except Exception:
-            pass
+            tmp = IP_CACHE_FILE.with_suffix(IP_CACHE_FILE.suffix + ".tmp")
+            tmp.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp.replace(IP_CACHE_FILE)
+        except Exception as e:
+            print(f"[save_ip_cache] 写入 IP 缓存失败: {e}", flush=True)
 
 def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
     # 1. Read cache thread-safely
@@ -544,14 +600,79 @@ def fetch_trust_scores(nodes: list[dict[str, Any]]) -> None:
 
     def fetch_via_socks5(ip: str) -> int | None:
         try:
-            result = subprocess.run(
-                ["curl", "-s", "--max-time", "8", "--socks5-hostname", "127.0.0.1:7928",
-                 f"https://ip.net.coffee/api/ip/lookup/{ip}"],
-                capture_output=True, text=True, timeout=12
-            )
-            if result.returncode != 0 or not result.stdout:
+            import http.client
+            import ssl
+
+            socks_host = "127.0.0.1"
+            socks_port = 7928
+            target_host = "ip.net.coffee"
+            target_port = 443
+
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(8)
+            s.connect((socks_host, socks_port))
+
+            s.sendall(b"\x05\x01\x00")
+            resp = s.recv(2)
+            if len(resp) < 2 or resp[0] != 0x05 or resp[1] != 0x00:
+                s.close()
                 return None
-            data = json.loads(result.stdout)
+
+            addr_bytes = target_host.encode("idna")
+            if len(addr_bytes) > 255:
+                s.close()
+                return None
+            req = b"\x05\x01\x00\x03" + bytes([len(addr_bytes)]) + addr_bytes + target_port.to_bytes(2, "big")
+            s.sendall(req)
+
+            resp = b""
+            while len(resp) < 4:
+                chunk = s.recv(4 - len(resp))
+                if not chunk:
+                    s.close()
+                    return None
+                resp += chunk
+
+            if resp[0] != 0x05 or resp[1] != 0x00:
+                s.close()
+                return None
+
+            atyp = resp[3]
+            if atyp == 0x01:
+                rest_len = 4 + 2
+            elif atyp == 0x04:
+                rest_len = 16 + 2
+            elif atyp == 0x03:
+                if len(resp) < 5:
+                    more = s.recv(1)
+                    if not more:
+                        s.close()
+                        return None
+                    resp += more
+                rest_len = resp[4] + 2
+            else:
+                s.close()
+                return None
+
+            while len(resp) - 4 < rest_len:
+                chunk = s.recv(rest_len - (len(resp) - 4))
+                if not chunk:
+                    s.close()
+                    return None
+                resp += chunk
+
+            ctx = ssl.create_default_context()
+            ss = ctx.wrap_socket(s, server_hostname=target_host)
+            conn = http.client.HTTPSConnection(target_host, target_port, timeout=8)
+            conn.sock = ss
+            conn.request("GET", f"/api/ip/lookup/{ip}", headers={"User-Agent": "vpngate-manager/2.2"})
+            resp_obj = conn.getresponse()
+            body = resp_obj.read().decode("utf-8", errors="replace")
+            conn.close()
+
+            if resp_obj.status != 200 or not body:
+                return None
+            data = json.loads(body)
             trust = data.get("trust_score")
             return int(trust) if trust is not None else None
         except Exception:
