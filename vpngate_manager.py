@@ -3641,19 +3641,56 @@ INDEX_HTML = r"""<!doctype html>
     /* === 移动端优化：工具栏筛选器 === */
     @media (max-width: 768px) {
       .toolbar {
-        flex-wrap: wrap;
-        gap: 8px;
+        padding: 12px;
+        gap: 10px;
       }
-      .toolbar select, .toolbar input, .toolbar button {
+      .toolbar select {
         height: 40px;
         font-size: 13px;
-        flex: 1;
-        min-width: calc(50% - 4px);
+        flex: 1 1 calc(50% - 5px);
+        min-width: 0;
+        width: auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0 12px;
+        color: var(--text);
+      }
+      .toolbar button {
+        height: 40px;
+        font-size: 13px;
+        flex: 1 1 calc(50% - 5px);
+        min-width: 0;
+        justify-content: center;
+      }
+      .toolbar #node_count_label {
+        order: -1;
+        width: 100%;
+        text-align: center;
+        padding: 4px 0;
+      }
+      .toolbar #btn_batch_test {
+        flex: 1 1 100%;
+        order: 10;
+      }
+      .toolbar #btn_favorites {
+        flex: 1 1 100%;
+        order: 11;
+        margin-left: 0 !important;
+      }
+      .toolbar #batch_test_progress {
+        order: 12;
+        width: 100%;
+        margin-left: 0 !important;
+        min-width: 0 !important;
       }
     }
     @media (max-width: 480px) {
-      .toolbar select, .toolbar input, .toolbar button {
-        min-width: 100%;
+      .toolbar select {
+        flex: 1 1 100%;
+      }
+      .toolbar button {
+        flex: 1 1 100%;
       }
     }
 
@@ -4608,7 +4645,7 @@ function render(){
 
   // Render table rows
   if (currentPageNodes.length === 0) {
-    $("rows").innerHTML = `<tr class="empty-row" style="display: table-row !important;"><td colspan="8" style="display: table-cell !important; text-align: center; color: var(--text-secondary); padding: 40px 0;">未找到符合过滤条件的备选节点。</td></tr>`;
+    $("rows").innerHTML = `<tr class="empty-row"><td colspan="8" style="text-align: center; color: var(--text-secondary); padding: 40px 0;">未找到符合过滤条件的备选节点。</td></tr>`;
   } else {
     $("rows").innerHTML=currentPageNodes.map(n=>{
       if (!n) return '';
@@ -4640,17 +4677,17 @@ function render(){
         ? `<button class="test-btn" style="color: var(--warning); border-color: rgba(245, 158, 11, 0.4); padding: 0 8px; height: 30px;" onclick="toggleFavorite('${esc(n.id)}', event)">★ 已收藏</button>`
         : `<button class="test-btn" style="color: var(--text-secondary); border-color: var(--border-color); padding: 0 8px; height: 30px;" onclick="toggleFavorite('${esc(n.id)}', event)">☆ 收藏</button>`;
 
-      return `<tr ${rowClass} style="display: table-row !important;">
-        <td data-label="状态" style="display: table-cell !important; white-space: nowrap;"><span class="badge ${badgeClass}">${badgeText}</span></td>
-        <td data-label="IP地址" class="mono" style="white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; display: table-cell !important;" title="${esc(n.ip||n.remote_host)}:${n.remote_port||""}">${esc(n.ip||n.remote_host)}:${n.remote_port||""}</td>
-        <td data-label="位置" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: table-cell !important;" title="${esc(displayLocation)}">${esc(displayLocation)}</td>
-        <td data-label="运营主体" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: table-cell !important;" title="${esc(n.owner||n.as_name||"-")}">${esc(n.owner||n.as_name||"-")}</td>
-        <td data-label="IP类型" style="white-space: nowrap; max-width: 110px; overflow: hidden; text-overflow: ellipsis; display: table-cell !important;" title="${esc(translateIpType(n.ip_type))}">${esc(translateIpType(n.ip_type))}</td>
-        <td data-label="延迟" style="white-space: nowrap; display: table-cell !important;">${latencyText}</td>
-        <td data-label="健康度" style="white-space: nowrap; display: table-cell !important;">
+      return `<tr ${rowClass}>
+        <td data-label="状态" style="white-space: nowrap;"><span class="badge ${badgeClass}">${badgeText}</span></td>
+        <td data-label="IP地址" class="mono" style="white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis;" title="${esc(n.ip||n.remote_host)}:${n.remote_port||""}">${esc(n.ip||n.remote_host)}:${n.remote_port||""}</td>
+        <td data-label="位置" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${esc(displayLocation)}">${esc(displayLocation)}</td>
+        <td data-label="运营主体" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${esc(n.owner||n.as_name||"-")}">${esc(n.owner||n.as_name||"-")}</td>
+        <td data-label="IP类型" style="white-space: nowrap; max-width: 110px; overflow: hidden; text-overflow: ellipsis;" title="${esc(translateIpType(n.ip_type))}">${esc(translateIpType(n.ip_type))}</td>
+        <td data-label="延迟" style="white-space: nowrap;">${latencyText}</td>
+        <td data-label="健康度" style="white-space: nowrap;">
           <span class="health-badge ${getHealthClass(getHealthScore(n))}">${getHealthScore(n)}</span>
         </td>
-        <td data-label="操作" style="display: table-cell !important;">
+        <td data-label="操作">
           <div class="table-actions">
             ${favBtn}
             ${connectBtn}
@@ -4742,14 +4779,14 @@ function renderOverviewNodes(activeNode) {
       ? '<button class="connect-btn" disabled style="background:var(--success-gradient);color:white;cursor:default;opacity:1;">已连接</button>'
       : '<button class="connect-btn" ' + ((isUnavailable || state.is_connecting) ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : '') + ' onclick="connectNode(\'' + esc(n.id) + '\')">切换</button>';
 
-    return '<tr' + (isActive ? ' class="active-row"' : '') + ' style="display:table-row!important;">' +
-      '<td data-label="状态" style="display:table-cell!important;white-space:nowrap;"><span class="badge ' + badgeClass + '">' + badgeText + '</span></td>' +
-      '<td data-label="IP地址" class="mono" style="white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis;display:table-cell!important;" title="' + esc(n.ip||n.remote_host) + ':' + (n.remote_port||"") + '">' + esc(n.ip||n.remote_host) + ':' + (n.remote_port||"") + '</td>' +
-      '<td data-label="位置" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:table-cell!important;" title="' + esc(displayLocation) + '">' + esc(displayLocation) + '</td>' +
-      '<td data-label="IP类型" style="white-space:nowrap;display:table-cell!important;">' + esc(translateIpType(n.ip_type)) + '</td>' +
-      '<td data-label="延迟" style="white-space:nowrap;display:table-cell!important;">' + latencyText + '</td>' +
-      '<td data-label="健康度" style="white-space:nowrap;display:table-cell!important;"><span class="health-badge ' + getHealthClass(getHealthScore(n)) + '">' + getHealthScore(n) + '</span></td>' +
-      '<td data-label="操作" style="display:table-cell!important;">' + connectBtn + '</td>' +
+    return '<tr' + (isActive ? ' class="active-row"' : '') + '>' +
+      '<td data-label="状态" style="white-space:nowrap;"><span class="badge ' + badgeClass + '">' + badgeText + '</span></td>' +
+      '<td data-label="IP地址" class="mono" style="white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis;" title="' + esc(n.ip||n.remote_host) + ':' + (n.remote_port||"") + '">' + esc(n.ip||n.remote_host) + ':' + (n.remote_port||"") + '</td>' +
+      '<td data-label="位置" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + esc(displayLocation) + '">' + esc(displayLocation) + '</td>' +
+      '<td data-label="IP类型" style="white-space:nowrap;">' + esc(translateIpType(n.ip_type)) + '</td>' +
+      '<td data-label="延迟" style="white-space:nowrap;">' + latencyText + '</td>' +
+      '<td data-label="健康度" style="white-space:nowrap;"><span class="health-badge ' + getHealthClass(getHealthScore(n)) + '">' + getHealthScore(n) + '</span></td>' +
+      '<td data-label="操作">' + connectBtn + '</td>' +
       '</tr>';
   }).join("");
 }
