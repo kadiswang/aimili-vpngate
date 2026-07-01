@@ -3270,7 +3270,7 @@ INDEX_HTML = r"""<!doctype html>
       white-space: nowrap;
     }
 
-    td {
+    .msg-error {
       padding: 8px 12px;
       background: var(--danger-bg);
       border: 1px solid rgba(239,68,68,0.2);
