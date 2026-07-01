@@ -5,6 +5,7 @@ import os
 import re
 import socket
 import subprocess
+import sys
 import time
 import urllib.parse
 import urllib.request
@@ -377,7 +378,6 @@ def save_ip_cache(cache: dict[str, dict[str, Any]]) -> None:
             pass
 
 def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
-    # 1. Read cache thread-safely
     with ip_cache_lock:
         cache = load_ip_cache()
 
@@ -412,28 +412,44 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
     if not ips_to_query:
         return
 
-    # 2. Query net.coffee per-IP (with fallback to ip-api.com)
-    new_entries = {}
-    for ip in ips_to_query:
+    def _query_single_ip(ip: str) -> tuple[str, dict[str, Any] | None]:
         entry = query_ip_netcoffee(ip)
-        if entry:
-            new_entries[ip] = entry
-        else:
-            # Fallback to ip-api.com
+        if not entry:
             entry = query_ip_api(ip)
-            if entry:
-                new_entries[ip] = entry
+        return ip, entry
+
+    new_entries = {}
+    max_concurrent = min(8, max(1, len(ips_to_query)))
+    try:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
+            futures = {executor.submit(_query_single_ip, ip): ip for ip in ips_to_query}
+            for future in as_completed(futures):
+                try:
+                    ip, entry = future.result()
+                    if entry:
+                        new_entries[ip] = entry
+                except Exception:
+                    pass
+    except Exception:
+        for ip in ips_to_query:
+            try:
+                entry = query_ip_netcoffee(ip)
+                if not entry:
+                    entry = query_ip_api(ip)
+                if entry:
+                    new_entries[ip] = entry
+            except Exception:
+                pass
 
     if not new_entries:
         return
 
-    # 3. Save cache thread-safely
     with ip_cache_lock:
         cache = load_ip_cache()
         cache.update(new_entries)
         save_ip_cache(cache)
 
-    # 4. Enrich nodes with newly queried info
     for node in nodes:
         ip = node.get("ip") or node.get("remote_host")
         if ip in new_entries:
@@ -686,7 +702,6 @@ def diagnose_openvpn_failure(log_tail: list[str]) -> tuple[int, str]:
 
 
 def diagnose_local_obstructions(proxy_port: int = 7928, host: str = "127.0.0.1") -> tuple[int, str] | None:
-    import sys
     # 1. 检查端口是否被占用
     is_ipv6 = ":" in host or host == ""
     af = socket.AF_INET6 if is_ipv6 else socket.AF_INET
