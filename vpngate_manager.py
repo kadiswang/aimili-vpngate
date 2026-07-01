@@ -47,7 +47,7 @@ def _ipv4_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
 socket.getaddrinfo = _ipv4_getaddrinfo
 
 import vpn_utils
-from vpn_utils import safe_int as _safe_int, safe_float as _safe_float, parse_int
+from vpn_utils import safe_int, safe_float, parse_int
 
 class DualStackHTTPServer(ThreadingHTTPServer):
     def __init__(self, server_address, RequestHandlerClass, bind_and_activate=True):
@@ -1030,10 +1030,10 @@ def _merge_nodes(
             continue
 
         # 比较质量：优先保留 speed 更高 或 latency 更低 的
-        new_speed = _safe_float(node.get("speed"), 0)
-        old_speed = _safe_float(existing.get("speed"), 0)
-        new_latency = _safe_int(node.get("latency_ms"), 9999)
-        old_latency = _safe_int(existing.get("latency_ms"), 9999)
+        new_speed = safe_float(node.get("speed"), 0)
+        old_speed = safe_float(existing.get("speed"), 0)
+        new_latency = safe_int(node.get("latency_ms"), 9999)
+        old_latency = safe_int(existing.get("latency_ms"), 9999)
 
         if new_speed > old_speed or new_latency < old_latency:
             candidates.remove(existing)

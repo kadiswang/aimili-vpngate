@@ -29,16 +29,16 @@ from typing import Any
 from pathlib import Path
 
 try:
-    from vpn_utils import COUNTRY_TRANSLATIONS, safe_int as _safe_int, safe_float as _safe_float
+    from vpn_utils import COUNTRY_TRANSLATIONS, safe_int, safe_float
     from vpn_utils import env_int as _env_int, env_bool as _env_bool, env_str as _env_str
 except ImportError:
     COUNTRY_TRANSLATIONS = {}
-    def _safe_int(val, default=0):
+    def safe_int(val, default=0):
         try:
             return int(val)
         except (ValueError, TypeError):
             return default
-    def _safe_float(val, default=0.0):
+    def safe_float(val, default=0.0):
         try:
             return float(val)
         except (ValueError, TypeError):
@@ -259,7 +259,7 @@ def fetch_publicvpnlist_nodes() -> list[dict[str, Any]]:
         print(f"[PublicVPNList] {page} 解析到 {len(raw_nodes)} 个候选节点", flush=True)
 
         # 按速度降序取前 N 个
-        raw_nodes.sort(key=lambda n: _safe_float(n.get("speed"), 0), reverse=True)
+        raw_nodes.sort(key=lambda n: safe_float(n.get("speed"), 0), reverse=True)
         selected = raw_nodes[:per_country_limit]
 
         for node in selected:
@@ -269,9 +269,9 @@ def fetch_publicvpnlist_nodes() -> list[dict[str, Any]]:
                 continue
 
             # 速度/延迟/score 过滤
-            speed = _safe_float(node.get("speed"), 0)
-            latency = _safe_int(node.get("latency"), 0)
-            score = _safe_float(node.get("technical_score"), 0)
+            speed = safe_float(node.get("speed"), 0)
+            latency = safe_int(node.get("latency"), 0)
+            score = safe_float(node.get("technical_score"), 0)
 
             if min_speed > 0 and speed < min_speed:
                 continue
@@ -325,8 +325,8 @@ def fetch_publicvpnlist_nodes() -> list[dict[str, Any]]:
                 "country_short": node["country_code"].upper()[:2],
                 "host_name": node.get("host", ""),
                 "ip": config_remote_ip,
-                "score": _safe_float(node.get("technical_score"), 0) or None,
-                "ping": _safe_int(node.get("latency"), 0) or None,
+                "score": safe_float(node.get("technical_score"), 0) or None,
+                "ping": safe_int(node.get("latency"), 0) or None,
                 "speed": speed,
                 "sessions": None,
                 "owner": "",

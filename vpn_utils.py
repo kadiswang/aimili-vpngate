@@ -19,35 +19,6 @@ IP_CACHE_FILE = DATA_DIR / "ip_cache.json"
 ip_cache_lock = threading.RLock()
 
 
-ERR_CODE_API_UNKNOWN = 1001
-ERR_CODE_LOCAL_DNS_BROKEN = 1006
-ERR_CODE_API_DOMAIN_BLOCKED = 1007
-ERR_CODE_API_IP_BLOCKED_OR_DOWN = 1008
-ERR_CODE_VPS_OUTBOUND_BLOCKED = 1009
-ERR_CODE_API_TLS_INTERFERENCE = 1010
-
-ERR_CODE_OVPN_CMD_NOT_FOUND = 2001
-ERR_CODE_OVPN_PERMISSION_DENIED = 2002
-ERR_CODE_OVPN_DNS_RESOLVE = 2003
-ERR_CODE_OVPN_NODE_UNREACHABLE = 2004
-ERR_CODE_OVPN_AUTH_FAILED = 2005
-ERR_CODE_OVPN_TLS_BLOCKED = 2006
-ERR_CODE_OVPN_ROUTE_NOPULL = 2007
-ERR_CODE_OVPN_TUN_NOT_AVAILABLE = 2009
-ERR_CODE_OVPN_START_FAILED = 2002
-ERR_CODE_OVPN_UNKNOWN = 2010
-
-ERR_CODE_ROUTE_FORWARD_DISABLED = 3001
-ERR_CODE_ROUTE_TABLE_ADD_FAILED = 3003
-ERR_CODE_ROUTE_DEV_NOT_FOUND = 3004
-ERR_CODE_PORT_IN_USE = 3005
-ERR_CODE_PROXY_BIND_TUN_PERM_DENIED = 3006
-ERR_CODE_FIREWALL_BLOCKING_FORWARD = 3007
-ERR_CODE_ROUTE_RP_FILTER_STRICT = 3008
-ERR_CODE_TUN_DEV_NOT_FOUND = 3009
-ERR_CODE_TUN_PERMISSION_DENIED = 3010
-
-
 COUNTRY_TRANSLATIONS = {
     "Japan": "日本",
     "South Korea": "韩国",
@@ -132,9 +103,6 @@ def safe_int(val: Any, default: int = 0) -> int:
         return default
 
 
-_safe_int = safe_int
-
-
 def safe_float(val: Any, default: float = 0.0) -> float:
     try:
         return float(val)
@@ -208,11 +176,11 @@ def parse_proxy_endpoint(value: str, default_port: int) -> tuple[str | None, int
         host = host_part.lstrip("[")
         port = default_port
         if sep and rest.startswith(":"):
-            port = _safe_int(rest[1:], default_port)
+            port = safe_int(rest[1:], default_port)
         return host or None, port
     if value.count(":") == 1:
         host, _, port_text = value.rpartition(":")
-        return host or None, _safe_int(port_text, default_port)
+        return host or None, safe_int(port_text, default_port)
     return value, default_port
 
 def _proxy_config_from_env(env_name: str, forced_type: str | None = None) -> tuple[str, str, int, str | None, str | None] | None:
