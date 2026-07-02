@@ -6,7 +6,8 @@ import time
 import os
 
 from core.constants import UI_HOST, UI_PORT, FETCH_INTERVAL_SECONDS, CHECK_INTERVAL_SECONDS
-from core.state import log_to_json, graceful_shutdown, ensure_dirs
+from core.state import log_to_json, graceful_shutdown, ensure_dirs, last_collector_heartbeat, last_checker_heartbeat
+import core.state
 from core.config import init_config
 from vpn.nodes import maintain_valid_nodes, auto_switch_node
 from vpn.openvpn import kill_existing_openvpn_processes
@@ -33,6 +34,7 @@ def main() -> None:
                 maintain_valid_nodes()
             except Exception as e:
                 log_to_json("ERROR", "Maintain", f"节点维护循环异常: {e}")
+            core.state.last_collector_heartbeat = time.time()
             time.sleep(FETCH_INTERVAL_SECONDS)
 
     def run_check_loop():
@@ -41,12 +43,16 @@ def main() -> None:
                 auto_switch_node()
             except Exception as e:
                 log_to_json("ERROR", "Checker", f"连接检查循环异常: {e}")
+            core.state.last_checker_heartbeat = time.time()
             time.sleep(CHECK_INTERVAL_SECONDS)
 
     threading.Thread(target=run_maintain_loop, daemon=True).start()
     threading.Thread(target=run_check_loop, daemon=True).start()
 
     server = DualStackHTTPServer((UI_HOST, UI_PORT), VPNRequestHandler)
+    display_host = f"[{UI_HOST}]" if ":" in UI_HOST else UI_HOST
+    print(f"[Web] Web 管理后台已启动: http://{display_host}:{UI_PORT}", flush=True)
+    log_to_json("INFO", "Main", f"Web 管理后台已启动，监听 {UI_HOST}:{UI_PORT}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
