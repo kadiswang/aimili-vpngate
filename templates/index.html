@@ -1870,7 +1870,7 @@ function render(){
         ? `<button class="test-btn" style="color: var(--warning); border-color: rgba(245, 158, 11, 0.4); padding: 0 8px; height: 30px;" onclick="toggleFavorite('${esc(n.id)}', event)">★ 已收藏</button>`
         : `<button class="test-btn" style="color: var(--text-secondary); border-color: var(--border-color); padding: 0 8px; height: 30px;" onclick="toggleFavorite('${esc(n.id)}', event)">☆ 收藏</button>`;
 
-      return `<tr ${rowClass} style="display: table-row;">
+      return `<tr ${rowClass}>
         <td data-label="状态" style="display: table-cell; white-space: nowrap;"><span class="badge ${badgeClass}">${badgeText}</span></td>
         <td data-label="IP地址" class="mono" style="white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; display: table-cell;" title="${esc(n.ip||n.remote_host)}:${n.remote_port||""}">${esc(n.ip||n.remote_host)}:${n.remote_port||""}</td>
         <td data-label="位置" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: table-cell;" title="${esc(displayLocation)}">${esc(displayLocation)}</td>
@@ -1967,7 +1967,7 @@ function renderOverviewNodes(activeNode) {
       ? '<button class="connect-btn" disabled style="background:var(--success-gradient);color:white;cursor:default;opacity:1;">已连接</button>'
       : '<button class="connect-btn" ' + ((isUnavailable || state.is_connecting) ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : '') + ' onclick="connectNode(\'' + esc(n.id) + '\')">切换</button>';
 
-    return '<tr' + (isActive ? ' class="active-row"' : '') + ' style="display:table-row;">' +
+    return '<tr' + (isActive ? ' class="active-row"' : '') + '>' +
       '<td data-label="状态" style="display:table-cell;white-space:nowrap;"><span class="badge ' + badgeClass + '">' + badgeText + '</span></td>' +
       '<td data-label="IP地址" class="mono" style="white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis;display:table-cell;" title="' + esc(n.ip||n.remote_host) + ':' + (n.remote_port||"") + '">' + esc(n.ip||n.remote_host) + ':' + (n.remote_port||"") + '</td>' +
       '<td data-label="位置" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:table-cell;" title="' + esc(displayLocation) + '">' + esc(displayLocation) + '</td>' +
