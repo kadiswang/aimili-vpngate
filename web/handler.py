@@ -545,11 +545,11 @@ class VPNRequestHandler(BaseHTTPRequestHandler):
                     ui_cfg["proxy_port"] = new_proxy_port
             except (TypeError, ValueError):
                 pass
-        if "routing_mode" in body and body["routing_mode"] in ("auto", "off", "force_country"):
+        if "routing_mode" in body and body["routing_mode"] in ("auto", "fixed_ip", "fixed_region", "favorites"):
             ui_cfg["routing_mode"] = body["routing_mode"]
         if "force_country" in body and isinstance(body["force_country"], str):
             ui_cfg["force_country"] = body["force_country"][:64]
-        if "routing_ip_type" in body and body["routing_ip_type"] in ("all", "ipv4", "ipv6"):
+        if "routing_ip_type" in body and body["routing_ip_type"] in ("all", "residential", "hosting"):
             ui_cfg["routing_ip_type"] = body["routing_ip_type"]
         if "min_health_score" in body:
             try:

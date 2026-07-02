@@ -2956,7 +2956,11 @@ setInterval(async () => {
     try {
       const d = await fetchWithCsrf("./api/nodes");
       nodes = d.nodes || [];
-      state = d.state || {};
+      // 只合并运行时状态字段，保留设置类字段（settings 只在 load() 时完整拉取）
+      const runtimeState = d.state || {};
+      for (const k in runtimeState) {
+        state[k] = runtimeState[k];
+      }
       stableSortNodes();
       updateCountryFilter();
       render();
