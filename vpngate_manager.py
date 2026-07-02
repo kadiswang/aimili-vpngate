@@ -18,7 +18,9 @@ def main() -> None:
     ensure_dirs()
     log_to_json("INFO", "Main", "服务已启动，正在初始化...")
     kill_existing_openvpn_processes()
-    init_config()
+    config = init_config()
+    ui_host = config.get("host", UI_HOST)
+    ui_port = config.get("port", UI_PORT)
 
     def sigterm_handler(signum, frame):
         log_to_json("INFO", "Main", "接收到终止信号，正在优雅关闭...")
@@ -49,10 +51,10 @@ def main() -> None:
     threading.Thread(target=run_maintain_loop, daemon=True).start()
     threading.Thread(target=run_check_loop, daemon=True).start()
 
-    server = DualStackHTTPServer((UI_HOST, UI_PORT), VPNRequestHandler)
-    display_host = f"[{UI_HOST}]" if ":" in UI_HOST else UI_HOST
-    print(f"[Web] Web 管理后台已启动: http://{display_host}:{UI_PORT}", flush=True)
-    log_to_json("INFO", "Main", f"Web 管理后台已启动，监听 {UI_HOST}:{UI_PORT}")
+    server = DualStackHTTPServer((ui_host, ui_port), VPNRequestHandler)
+    display_host = f"[{ui_host}]" if ":" in ui_host else ui_host
+    print(f"[Web] Web 管理后台已启动: http://{display_host}:{ui_port}", flush=True)
+    log_to_json("INFO", "Main", f"Web 管理后台已启动，监听 {ui_host}:{ui_port}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

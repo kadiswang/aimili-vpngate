@@ -1133,6 +1133,39 @@ with open(auth_file, "w", encoding="utf-8") as f:
 PY
 fi
 
+# 7.5 Configure firewall (open web and proxy ports)
+# Read the actual port from config file (may have been customized by user)
+FIREWALL_UI_PORT="8787"
+FIREWALL_PROXY_PORT="7928"
+if [ -f "$AUTH_FILE" ]; then
+    FIREWALL_UI_PORT=$(python3 -c "import json; print(json.load(open('$AUTH_FILE')).get('port', 8787))" 2>/dev/null || echo "8787")
+    FIREWALL_PROXY_PORT=$(python3 -c "import json; print(json.load(open('$AUTH_FILE')).get('proxy_port', 7928))" 2>/dev/null || echo "7928")
+fi
+
+echo -e "\n${YELLOW}正在配置防火墙规则 (端口 ${FIREWALL_UI_PORT}, ${FIREWALL_PROXY_PORT})...${PLAIN}"
+if command -v ufw >/dev/null 2>&1; then
+    ufw allow ${FIREWALL_UI_PORT}/tcp >/dev/null 2>&1 || true
+    ufw allow ${FIREWALL_PROXY_PORT}/tcp >/dev/null 2>&1 || true
+    echo -e "${GREEN}  -> ufw 已放行端口 ${FIREWALL_UI_PORT}/tcp, ${FIREWALL_PROXY_PORT}/tcp${PLAIN}"
+elif command -v firewall-cmd >/dev/null 2>&1; then
+    firewall-cmd --permanent --add-port=${FIREWALL_UI_PORT}/tcp >/dev/null 2>&1 || true
+    firewall-cmd --permanent --add-port=${FIREWALL_PROXY_PORT}/tcp >/dev/null 2>&1 || true
+    firewall-cmd --reload >/dev/null 2>&1 || true
+    echo -e "${GREEN}  -> firewalld 已放行端口 ${FIREWALL_UI_PORT}/tcp, ${FIREWALL_PROXY_PORT}/tcp${PLAIN}"
+elif command -v iptables >/dev/null 2>&1; then
+    # Only add if not already present
+    if ! iptables -C INPUT -p tcp --dport ${FIREWALL_UI_PORT} -j ACCEPT 2>/dev/null; then
+        iptables -I INPUT -p tcp --dport ${FIREWALL_UI_PORT} -j ACCEPT 2>/dev/null || true
+    fi
+    if ! iptables -C INPUT -p tcp --dport ${FIREWALL_PROXY_PORT} -j ACCEPT 2>/dev/null; then
+        iptables -I INPUT -p tcp --dport ${FIREWALL_PROXY_PORT} -j ACCEPT 2>/dev/null || true
+    fi
+    echo -e "${GREEN}  -> iptables 已放行端口 ${FIREWALL_UI_PORT}/tcp, ${FIREWALL_PROXY_PORT}/tcp${PLAIN}"
+else
+    echo -e "${YELLOW}  -> 未检测到防火墙工具 (ufw/firewalld/iptables)，跳过防火墙配置${PLAIN}"
+    echo -e "${YELLOW}  -> 如果无法访问网页，请手动放行端口 ${FIREWALL_UI_PORT}/tcp 和 ${FIREWALL_PROXY_PORT}/tcp${PLAIN}"
+fi
+
 # 8. Start service
 # 8.5 Optimize network parameters (rp_filter for policy routing)
 echo -e "\n正在优化网络参数 (配置反向路径过滤 rp_filter=2 以支持策略路由)..."
