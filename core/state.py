@@ -252,6 +252,7 @@ def _generate_csrf_token() -> str:
 
 
 def _validate_csrf_token(token: str | None) -> bool:
+    from .constants import CSRF_TOKEN_EXPIRY
     if not token:
         return False
     with _csrf_lock:
