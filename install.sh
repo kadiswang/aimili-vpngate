@@ -192,18 +192,18 @@ INSTALL_DIR = "/opt/aimilivpn"
 LOG_FILE = "/opt/aimilivpn/vpngate_data/vpngate.log"
 
 def generate_random_password():
-    import random
+    import secrets
     import string
     chars = string.ascii_letters + string.digits
     while True:
-        pwd = "".join(random.choices(chars, k=12))
+        pwd = "".join(secrets.choice(chars) for _ in range(12))
         if any(c.islower() for c in pwd) and any(c.isupper() for c in pwd) and any(c.isdigit() for c in pwd):
             return pwd
 
 def generate_random_suffix():
-    import random
+    import secrets
     import string
-    return "".join(random.choices(string.ascii_letters + string.digits, k=12))
+    return "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
 
 def load_ui_cfg():
     import json
@@ -1014,23 +1014,25 @@ if [ ! -f "$AUTH_FILE" ]; then
     UI_PORT=8787
     PROXY_PORT=7928
     # generate random secret suffix (12 chars alphanumeric)
-    SECRET_PATH=$(python3 -c "import random, string; print(''.join(random.choices(string.ascii_letters + string.digits, k=12)))")
+    SECRET_PATH=$(python3 -c "import secrets, string; print(''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12)))")
     # generate random password
     UI_PASSWORD=$(python3 -c "
-import random, string
+import secrets, string
 chars = string.ascii_letters + string.digits
 while True:
-    pwd = ''.join(random.choices(chars, k=12))
+    pwd = ''.join(secrets.choice(chars) for _ in range(12))
     if any(c.islower() for c in pwd) and any(c.isupper() for c in pwd) and any(c.isdigit() for c in pwd):
         print(pwd)
         break
 ")
     UI_USERNAME=$(python3 -c "
-import random, string
+import secrets, string
 chars = string.ascii_letters + string.digits
 while True:
-    uname = ''.join(random.choices(chars, k=12))
-    if uname[0].isalpha() and any(c.islower() for c in uname) and any(c.isupper() for c in uname) and any(c.isdigit() for c in uname):
+    first = secrets.choice(string.ascii_letters)
+    rest = ''.join(secrets.choice(chars) for _ in range(11))
+    uname = first + rest
+    if any(c.islower() for c in uname) and any(c.isupper() for c in uname) and any(c.isdigit() for c in uname):
         print(uname)
         break
 ")

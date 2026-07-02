@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import concurrent.futures
 import csv
 import json
 import os
@@ -14,18 +15,19 @@ import socket
 import ssl
 import string
 import subprocess
+import sys
 import threading
 import time
+import secrets
+import traceback
 import urllib.parse
 import urllib.request
+import uuid
 from collections import deque
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-import concurrent.futures
-import sys
-import uuid
 
 # Prefer IPv4 resolution to avoid slow AAAA DNS timeouts (e.g. in WSL),
 # but fall back to system default (IPv6) if IPv4 resolution fails.
@@ -79,6 +81,7 @@ class DualStackHTTPServer(ThreadingHTTPServer):
         super().server_bind()
 
 import vpn_utils
+from vpn_utils import parse_int
 import proxy_server
 
 def env_int(name: str, default: int, min_value: int | None = None, max_value: int | None = None) -> int:
@@ -149,6 +152,7 @@ NODE_TEST_MAX_WORKERS = 5  # 批量节点测试最大并发数
 IP_INFO_MAX_CONCURRENT = 8  # IP 信息查询最大并发数
 AUTO_SWITCH_MAX_ATTEMPTS = 3  # 自动切换最大尝试次数
 LOG_CLEANUP_INTERVAL = 3600  # 日志清理间隔（秒）
+LOG_RETENTION_DAYS = 3  # 日志保留天数
 MAX_LOG_SIZE_BYTES = 10 * 1024 * 1024  # 单日志文件最大 10MB
 MAX_LOG_FILES = 5  # 日志轮转保留文件数
 NODE_EXPORT_FIELDS = [
@@ -158,7 +162,10 @@ NODE_EXPORT_FIELDS = [
     "probe_status", "probe_message", "probed_at",
 ]
 
-lock = threading.RLock()
+state_lock = threading.RLock()
+config_lock = threading.RLock()
+log_file_lock = threading.Lock()
+lock = state_lock
 maintenance_lock = threading.Lock()
 active_sessions: dict[str, float] = {}
 active_ws_clients: list = []
@@ -208,7 +215,7 @@ _last_cleanup_time = 0.0
 
 
 def load_ui_config() -> dict[str, Any]:
-    with lock:
+    with config_lock:
         auth_file = DATA_DIR / "ui_auth.json"
         config = {
             "username": "",
@@ -314,13 +321,11 @@ def read_json(path: Path, default: Any) -> Any:
         except (OSError, json.JSONDecodeError):
             return default
 
-import random
 
 def generate_random_password() -> str:
     chars = string.ascii_letters + string.digits
     while True:
-        pwd = "".join(random.choices(chars, k=12))
-        # Ensure it contains at least one lowercase, one uppercase, and one digit
+        pwd = "".join(secrets.choice(chars) for _ in range(12))
         has_lower = any(c.islower() for c in pwd)
         has_upper = any(c.isupper() for c in pwd)
         has_digit = any(c.isdigit() for c in pwd)
@@ -330,14 +335,14 @@ def generate_random_password() -> str:
 def generate_random_username() -> str:
     chars = string.ascii_letters + string.digits
     while True:
-        uname = "".join(random.choices(chars, k=12))
-        # Ensure it starts with a letter and contains at least one lowercase, one uppercase, and one digit
-        if uname[0].isalpha():
-            has_lower = any(c.islower() for c in uname)
-            has_upper = any(c.isupper() for c in uname)
-            has_digit = any(c.isdigit() for c in uname)
-            if has_lower and has_upper and has_digit:
-                return uname
+        first_char = secrets.choice(string.ascii_letters)
+        rest = "".join(secrets.choice(chars) for _ in range(11))
+        uname = first_char + rest
+        has_lower = any(c.islower() for c in uname)
+        has_upper = any(c.isupper() for c in uname)
+        has_digit = any(c.isdigit() for c in uname)
+        if has_lower and has_upper and has_digit:
+            return uname
 
 # 初始化时优先从 ui_auth.json 加载保存的代理出站端口和网页端口配置以覆盖环境变量
 try:
@@ -400,12 +405,11 @@ def _validate_csrf_token(token: str | None) -> bool:
 def cleanup_old_logs(logs_dir: Path) -> None:
     global _last_cleanup_time
     now = time.time()
-    with lock:
-        if now - _last_cleanup_time < LOG_CLEANUP_INTERVAL:
-            return
-        _last_cleanup_time = now
+    if now - _last_cleanup_time < LOG_CLEANUP_INTERVAL:
+        return
+    _last_cleanup_time = now
     try:
-        three_days_sec = 3 * 24 * 60 * 60
+        three_days_sec = LOG_RETENTION_DAYS * 24 * 60 * 60
         for path in logs_dir.glob("*.json"):
             match = re.match(r"^(\d{4}-\d{2}-\d{2})\.json$", path.name)
             if match:
@@ -415,17 +419,20 @@ def cleanup_old_logs(logs_dir: Path) -> None:
                     today_str = time.strftime("%Y-%m-%d", time.localtime())
                     today_time = time.mktime(time.strptime(today_str, "%Y-%m-%d"))
                     if today_time - file_time >= three_days_sec:
-                        with lock:
-                            path.unlink()
-                        print(f"[清理] 已删除3天前的旧日志文件: {path.name}", flush=True)
+                        path.unlink()
+                        print(f"[清理] 已删除{LOG_RETENTION_DAYS}天前的旧日志文件: {path.name}", flush=True)
                 except Exception:
                     if now - path.stat().st_mtime > three_days_sec:
-                        with lock:
-                            path.unlink()
+                        path.unlink()
     except Exception as e:
         print(f"[清理错误] 清理旧日志失败: {e}", flush=True)
+        print(traceback.format_exc(), flush=True)
+
+_log_write_counter = 0
+_LOG_CLEANUP_CHECK_EVERY = 100
 
 def log_to_json(level: str, module: str, message: str) -> None:
+    global _log_write_counter
     try:
         logs_dir = DATA_DIR / "logs"
         logs_dir.mkdir(exist_ok=True, parents=True)
@@ -437,10 +444,13 @@ def log_to_json(level: str, module: str, message: str) -> None:
             "module": module,
             "message": message
         }
-        with lock:
+        with log_file_lock:
             with open(log_file, "a", encoding="utf-8") as f:
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-        cleanup_old_logs(logs_dir)
+        _log_write_counter += 1
+        if _log_write_counter >= _LOG_CLEANUP_CHECK_EVERY:
+            _log_write_counter = 0
+            cleanup_old_logs(logs_dir)
     except Exception as e:
         print(f"[Log Error] Failed to write JSON log: {e}", flush=True)
 
@@ -558,12 +568,6 @@ def clear_active_connection_state(message: str) -> None:
         active_node_latency="无活动连接",
         last_check_message=message,
     )
-
-def parse_int(value: Any) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return 0
 
 def proxy_basic_auth_header(username: str, password: str) -> str:
     token = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")

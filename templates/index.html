@@ -51,28 +51,26 @@
       --shadow: none;
     }
 
-    [data-theme="dark"] .active-card-icon { background: #1a2236; }
+    [data-theme="dark"] .active-card-icon,
     [data-theme="dark"] .stat-icon { background: #1a2236; }
-    [data-theme="dark"] th { background: rgba(10,14,23,0.4); }
-    [data-theme="dark"] .log-container { background: #05080f; border-color: var(--border); }
-    [data-theme="dark"] .badge-info { background: rgba(99,102,241,0.15); color: #a5b4fc; }
-    [data-theme="dark"] .tag-green { background: rgba(16,185,129,0.12); color: #10b981; }
-    [data-theme="dark"] .tag-blue { background: rgba(99,102,241,0.15); color: #a5b4fc; }
-    [data-theme="dark"] .vps-card { background: var(--bg); }
-    [data-theme="dark"] .vps-item { background: var(--bg); }
-    [data-theme="dark"] .option-card { background: var(--bg); }
-    [data-theme="dark"] .form-input { background: var(--bg); }
-    [data-theme="dark"] .form-select { background: var(--bg); }
+    [data-theme="dark"] .card,
+    [data-theme="dark"] .vps-card,
+    [data-theme="dark"] .vps-item,
+    [data-theme="dark"] .option-card,
+    [data-theme="dark"] .form-input,
+    [data-theme="dark"] .form-select,
     [data-theme="dark"] .input-field { background: var(--bg); }
-    [data-theme="dark"] [style*="background: #f8fafc"] { background: var(--surface) !important; }
+    [data-theme="dark"] th { background: rgba(10,14,23,0.4); }
     [data-theme="dark"] tr:hover td { background: rgba(255,255,255,0.015); }
     [data-theme="dark"] .row-active td { background: rgba(16,185,129,0.06) !important; }
+    [data-theme="dark"] .log-container,
+    [data-theme="dark"] #log_terminal_container { background: #05080f !important; border-color: var(--border) !important; }
+    [data-theme="dark"] #log_terminal_container { color: #a5b4fc !important; box-shadow: inset 0 4px 20px rgba(0,0,0,0.8) !important; }
+    [data-theme="dark"] .badge-info,
+    [data-theme="dark"] .tag-blue { background: rgba(99,102,241,0.15); color: #a5b4fc; }
+    [data-theme="dark"] .tag-green { background: rgba(16,185,129,0.12); color: #10b981; }
     [data-theme="dark"] .modal-close:hover { background: var(--surface-2); }
-    [data-theme="dark"] #log_terminal_container { background: #05080f !important; border-color: var(--border) !important; color: #a5b4fc !important; box-shadow: inset 0 4px 20px rgba(0,0,0,0.8) !important; }
     [data-theme="dark"] [style*="background: #f8fafc"] { background: var(--surface) !important; }
-    [data-theme="dark"] .active-card-icon, 
-    [data-theme="dark"] .stat-icon { background: #1a2236; }
-    [data-theme="dark"] .card { background: var(--bg); }
 
     /* === 动态背景 Blob === */
     .main-blob {
@@ -557,23 +555,33 @@
     table {
       width: 100%;
       border-collapse: collapse;
+      table-layout: fixed;
       font-size: 13px;
     }
 
     th {
       text-align: left;
-      padding: 12px 16px;
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: .6px;
-      color: var(--text-muted);
+      padding: 10px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
       background: var(--surface-2);
       border-bottom: 1px solid var(--border);
       white-space: nowrap;
     }
 
     td {
+      padding: 10px 14px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      color: var(--text-primary);
+      font-size: 13px;
+    }
+
+    tbody tr:hover td { background: var(--surface-2); }
+    tbody tr:last-child td { border-bottom: none; }
+
+    .msg-error {
       padding: 8px 12px;
       background: var(--danger-bg);
       border: 1px solid rgba(239,68,68,0.2);
@@ -848,13 +856,6 @@
     @media (max-width: 576px) { .vps-links { grid-template-columns: 1fr; } }
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     @keyframes modalFadeIn { from { transform: scale(0.97); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-    
-    /* 表格样式 - 覆盖login页面遗留的danger-bg */
-    table { border-collapse: collapse; table-layout: fixed; }
-    th { padding: 10px 14px; background: var(--surface-2); border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text-secondary); font-weight: 600; }
-    td { padding: 10px 14px; background: var(--surface); border-bottom: 1px solid var(--border); color: var(--text-primary); font-size: 13px; }
-    tbody tr:hover td { background: var(--surface-2); }
-    tbody tr:last-child td { border-bottom: none; }
     
     @media (max-width: 768px) {
       .modal { padding: 12px; align-items: flex-end; }

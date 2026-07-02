@@ -6,16 +6,20 @@ import re
 import socket
 import subprocess
 import sys
+import threading
 import time
+import traceback
 import urllib.parse
 import urllib.request
-import threading
 from pathlib import Path
 from typing import Any
 
 ROOT_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.environ["VPNGATE_DATA_DIR"]).resolve() if os.environ.get("VPNGATE_DATA_DIR") else ROOT_DIR / "vpngate_data"
 IP_CACHE_FILE = DATA_DIR / "ip_cache.json"
+IP_CACHE_TTL_SECONDS = 7 * 24 * 3600
+IP_INFO_MAX_CONCURRENT = 8
+IP_QUERY_TIMEOUT = 10
 
 ip_cache_lock = threading.RLock()
 
@@ -360,6 +364,21 @@ def check_and_fix_dns() -> None:
         except Exception as e:
             print(f"[dns_heal] Failed to write DNS fallback: {e}", flush=True)
 
+
+def parse_int(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def parse_positive_int(value: str | None, default: int) -> int:
+    try:
+        return max(1, int(value or default))
+    except (TypeError, ValueError):
+        return default
+
+
 def load_ip_cache() -> dict[str, dict[str, Any]]:
     with ip_cache_lock:
         try:
@@ -378,33 +397,18 @@ def save_ip_cache(cache: dict[str, dict[str, Any]]) -> None:
             pass
 
 def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
-    with ip_cache_lock:
-        cache = load_ip_cache()
+    cache = load_ip_cache()
 
-    ips_to_query = []
+    ips_to_query: list[str] = []
     now = time.time()
 
     for node in nodes:
         ip = node.get("ip") or node.get("remote_host")
         if not ip:
             continue
-        if ip in cache and now - cache[ip].get("cached_at", 0) < 7 * 24 * 3600:
+        if ip in cache and now - cache[ip].get("cached_at", 0) < IP_CACHE_TTL_SECONDS:
             cached = cache[ip]
-            node["owner"] = cached.get("owner", "")
-            node["asn"] = cached.get("asn", "")
-            node["as_name"] = cached.get("as_name", "")
-            node["location"] = cached.get("location", "")
-            node["ip_type"] = cached.get("ip_type", "")
-            node["quality"] = cached.get("quality", "")
-            node["trust_score"] = cached.get("trust_score", 0)
-            node["is_datacenter"] = cached.get("is_datacenter", False)
-            node["is_residential"] = cached.get("is_residential", False)
-            node["is_vpn"] = cached.get("is_vpn", False)
-            node["is_proxy"] = cached.get("is_proxy", False)
-            node["is_tor"] = cached.get("is_tor", False)
-            node["is_crawler"] = cached.get("is_crawler", False)
-            node["is_abuser"] = cached.get("is_abuser", False)
-            node["abuser_level"] = cached.get("abuser_level", "")
+            _apply_ip_info(node, cached)
         else:
             if ip not in ips_to_query:
                 ips_to_query.append(ip)
@@ -418,8 +422,8 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
             entry = query_ip_api(ip)
         return ip, entry
 
-    new_entries = {}
-    max_concurrent = min(8, max(1, len(ips_to_query)))
+    new_entries: dict[str, dict[str, Any]] = {}
+    max_concurrent = min(IP_INFO_MAX_CONCURRENT, max(1, len(ips_to_query)))
     try:
         from concurrent.futures import ThreadPoolExecutor, as_completed
         with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
@@ -429,9 +433,11 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
                     ip, entry = future.result()
                     if entry:
                         new_entries[ip] = entry
-                except Exception:
-                    pass
-    except Exception:
+                except Exception as e:
+                    print(f"[IP查询] 单个IP查询异常: {e}", flush=True)
+    except Exception as e:
+        print(f"[IP查询] 并发查询失败，回退到串行: {e}", flush=True)
+        print(traceback.format_exc(), flush=True)
         for ip in ips_to_query:
             try:
                 entry = query_ip_netcoffee(ip)
@@ -445,30 +451,31 @@ def enrich_ip_info(nodes: list[dict[str, Any]]) -> None:
     if not new_entries:
         return
 
-    with ip_cache_lock:
-        cache = load_ip_cache()
-        cache.update(new_entries)
-        save_ip_cache(cache)
+    cache.update(new_entries)
+    save_ip_cache(cache)
 
     for node in nodes:
         ip = node.get("ip") or node.get("remote_host")
         if ip in new_entries:
-            cached = new_entries[ip]
-            node["owner"] = cached.get("owner", "")
-            node["asn"] = cached.get("asn", "")
-            node["as_name"] = cached.get("as_name", "")
-            node["location"] = cached.get("location", "")
-            node["ip_type"] = cached.get("ip_type", "")
-            node["quality"] = cached.get("quality", "")
-            node["trust_score"] = cached.get("trust_score", 0)
-            node["is_datacenter"] = cached.get("is_datacenter", False)
-            node["is_residential"] = cached.get("is_residential", False)
-            node["is_vpn"] = cached.get("is_vpn", False)
-            node["is_proxy"] = cached.get("is_proxy", False)
-            node["is_tor"] = cached.get("is_tor", False)
-            node["is_crawler"] = cached.get("is_crawler", False)
-            node["is_abuser"] = cached.get("is_abuser", False)
-            node["abuser_level"] = cached.get("abuser_level", "")
+            _apply_ip_info(node, new_entries[ip])
+
+
+def _apply_ip_info(node: dict[str, Any], cached: dict[str, Any]) -> None:
+    node["owner"] = cached.get("owner", "")
+    node["asn"] = cached.get("asn", "")
+    node["as_name"] = cached.get("as_name", "")
+    node["location"] = cached.get("location", "")
+    node["ip_type"] = cached.get("ip_type", "")
+    node["quality"] = cached.get("quality", "")
+    node["trust_score"] = cached.get("trust_score", 0)
+    node["is_datacenter"] = cached.get("is_datacenter", False)
+    node["is_residential"] = cached.get("is_residential", False)
+    node["is_vpn"] = cached.get("is_vpn", False)
+    node["is_proxy"] = cached.get("is_proxy", False)
+    node["is_tor"] = cached.get("is_tor", False)
+    node["is_crawler"] = cached.get("is_crawler", False)
+    node["is_abuser"] = cached.get("is_abuser", False)
+    node["abuser_level"] = cached.get("abuser_level", "")
 
 
 def query_ip_netcoffee(ip: str) -> dict[str, Any] | None:
@@ -479,7 +486,7 @@ def query_ip_netcoffee(ip: str) -> dict[str, Any] | None:
             url,
             headers={"User-Agent": "Mozilla/5.0 (compatible; vpngate-manager/2.2)"},
         )
-        with urllib.request.urlopen(request, timeout=10) as response:
+        with urllib.request.urlopen(request, timeout=IP_QUERY_TIMEOUT) as response:
             data = json.loads(response.read().decode("utf-8", errors="replace"))
         if not isinstance(data, dict) or not data.get("ip"):
             return None
@@ -538,7 +545,7 @@ def query_ip_api(ip: str) -> dict[str, Any] | None:
             url,
             headers={"User-Agent": "vpngate-manager/2.2"},
         )
-        with urllib.request.urlopen(request, timeout=10) as response:
+        with urllib.request.urlopen(request, timeout=IP_QUERY_TIMEOUT) as response:
             data = json.loads(response.read().decode("utf-8", errors="replace"))
         if not isinstance(data, dict) or data.get("status") != "success":
             return None
