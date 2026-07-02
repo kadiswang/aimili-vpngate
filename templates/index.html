@@ -1839,7 +1839,7 @@ function render(){
 
   // Render table rows
   if (currentPageNodes.length === 0) {
-    $("rows").innerHTML = `<tr style="display: table-row;"><td colspan="8" style="display: table-cell; text-align: center; color: var(--text-secondary); padding: 40px 0;">未找到符合过滤条件的备选节点。</td></tr>`;
+    $("rows").innerHTML = `<tr class="empty-row"><td colspan="8" style="display: table-cell; text-align: center; color: var(--text-secondary); padding: 40px 0;">未找到符合过滤条件的备选节点。</td></tr>`;
   } else {
     $("rows").innerHTML=currentPageNodes.map(n=>{
       if (!n) return '';
@@ -1871,16 +1871,16 @@ function render(){
         : `<button class="test-btn" style="color: var(--text-secondary); border-color: var(--border-color); padding: 0 8px; height: 30px;" onclick="toggleFavorite('${esc(n.id)}', event)">☆ 收藏</button>`;
 
       return `<tr ${rowClass} style="display: table-row;">
-        <td style="display: table-cell; white-space: nowrap;"><span class="badge ${badgeClass}">${badgeText}</span></td>
-        <td class="mono" style="white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; display: table-cell;" title="${esc(n.ip||n.remote_host)}:${n.remote_port||""}">${esc(n.ip||n.remote_host)}:${n.remote_port||""}</td>
-        <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: table-cell;" title="${esc(displayLocation)}">${esc(displayLocation)}</td>
-        <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: table-cell;" title="${esc(n.owner||n.as_name||"-")}">${esc(n.owner||n.as_name||"-")}</td>
-        <td style="white-space: nowrap; max-width: 110px; overflow: hidden; text-overflow: ellipsis; display: table-cell;" title="${esc(translateIpType(n.ip_type))}">${esc(translateIpType(n.ip_type))}</td>
-        <td style="white-space: nowrap; display: table-cell;">${latencyText}</td>
-        <td style="white-space: nowrap; display: table-cell;">
+        <td data-label="状态" style="display: table-cell; white-space: nowrap;"><span class="badge ${badgeClass}">${badgeText}</span></td>
+        <td data-label="IP地址" class="mono" style="white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; display: table-cell;" title="${esc(n.ip||n.remote_host)}:${n.remote_port||""}">${esc(n.ip||n.remote_host)}:${n.remote_port||""}</td>
+        <td data-label="位置" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: table-cell;" title="${esc(displayLocation)}">${esc(displayLocation)}</td>
+        <td data-label="运营主体" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: table-cell;" title="${esc(n.owner||n.as_name||"-")}">${esc(n.owner||n.as_name||"-")}</td>
+        <td data-label="IP类型" style="white-space: nowrap; max-width: 110px; overflow: hidden; text-overflow: ellipsis; display: table-cell;" title="${esc(translateIpType(n.ip_type))}">${esc(translateIpType(n.ip_type))}</td>
+        <td data-label="延迟" style="white-space: nowrap; display: table-cell;">${latencyText}</td>
+        <td data-label="健康度" style="white-space: nowrap; display: table-cell;">
           <span class="health-badge ${getHealthClass(getHealthScore(n))}">${getHealthScore(n)}</span>
         </td>
-        <td style="display: table-cell;">
+        <td data-label="操作" style="display: table-cell;">
           <div class="table-actions">
             ${favBtn}
             ${connectBtn}
@@ -1968,13 +1968,13 @@ function renderOverviewNodes(activeNode) {
       : '<button class="connect-btn" ' + ((isUnavailable || state.is_connecting) ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : '') + ' onclick="connectNode(\'' + esc(n.id) + '\')">切换</button>';
 
     return '<tr' + (isActive ? ' class="active-row"' : '') + ' style="display:table-row;">' +
-      '<td style="display:table-cell;white-space:nowrap;"><span class="badge ' + badgeClass + '">' + badgeText + '</span></td>' +
-      '<td class="mono" style="white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis;display:table-cell;" title="' + esc(n.ip||n.remote_host) + ':' + (n.remote_port||"") + '">' + esc(n.ip||n.remote_host) + ':' + (n.remote_port||"") + '</td>' +
-      '<td style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:table-cell;" title="' + esc(displayLocation) + '">' + esc(displayLocation) + '</td>' +
-      '<td style="white-space:nowrap;display:table-cell;">' + esc(translateIpType(n.ip_type)) + '</td>' +
-      '<td style="white-space:nowrap;display:table-cell;">' + latencyText + '</td>' +
-      '<td style="white-space:nowrap;display:table-cell;"><span class="health-badge ' + getHealthClass(getHealthScore(n)) + '">' + getHealthScore(n) + '</span></td>' +
-      '<td style="display:table-cell;">' + connectBtn + '</td>' +
+      '<td data-label="状态" style="display:table-cell;white-space:nowrap;"><span class="badge ' + badgeClass + '">' + badgeText + '</span></td>' +
+      '<td data-label="IP地址" class="mono" style="white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis;display:table-cell;" title="' + esc(n.ip||n.remote_host) + ':' + (n.remote_port||"") + '">' + esc(n.ip||n.remote_host) + ':' + (n.remote_port||"") + '</td>' +
+      '<td data-label="位置" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:table-cell;" title="' + esc(displayLocation) + '">' + esc(displayLocation) + '</td>' +
+      '<td data-label="IP类型" style="white-space:nowrap;display:table-cell;">' + esc(translateIpType(n.ip_type)) + '</td>' +
+      '<td data-label="延迟" style="white-space:nowrap;display:table-cell;">' + latencyText + '</td>' +
+      '<td data-label="健康度" style="white-space:nowrap;display:table-cell;"><span class="health-badge ' + getHealthClass(getHealthScore(n)) + '">' + getHealthScore(n) + '</span></td>' +
+      '<td data-label="操作" style="display:table-cell;">' + connectBtn + '</td>' +
       '</tr>';
   }).join("");
 }
