@@ -301,7 +301,7 @@
       submitBtn.querySelector("span").textContent = "正在验证...";
 
       try {
-        var response = await fetch("./api/login", {
+        var response = await fetch("/api/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username: uname, password: pwd })
