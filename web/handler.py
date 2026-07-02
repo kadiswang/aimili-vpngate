@@ -153,40 +153,16 @@ class VPNRequestHandler(BaseHTTPRequestHandler):
             self.handle_api_audit()
             return
 
-        if stripped_path == "api/test-node":
-            self.handle_api_test_node(query)
+        if stripped_path == "api/csrf_token":
+            self.handle_api_csrf_token()
             return
 
-        if stripped_path == "api/test-multiple":
-            self.handle_api_test_multiple(query)
-            return
-
-        if stripped_path == "api/connect":
-            self.handle_api_connect(query)
-            return
-
-        if stripped_path == "api/disconnect":
-            self.handle_api_disconnect()
-            return
-
-        if stripped_path == "api/auto-switch":
-            self.handle_api_auto_switch()
-            return
-
-        if stripped_path == "api/maintain":
-            self.handle_api_maintain()
+        if stripped_path == "api/gateway_status":
+            self.handle_api_gateway_status()
             return
 
         if stripped_path == "api/settings":
-            self.handle_api_settings(query)
-            return
-
-        if stripped_path == "api/favorites":
-            self.handle_api_favorites(query)
-            return
-
-        if stripped_path == "api/csrf-token":
-            self.handle_api_csrf_token()
+            self.handle_api_settings_get()
             return
 
         if stripped_path == "ws":
@@ -213,16 +189,60 @@ class VPNRequestHandler(BaseHTTPRequestHandler):
 
         stripped_path = path[len(secret_path):].lstrip("/")
 
-        if stripped_path == "api/settings":
-            self.handle_api_settings_post()
-            return
-
-        if stripped_path == "api/favorites":
-            self.handle_api_favorites_post()
-            return
-
         if stripped_path == "api/login":
             self.handle_api_login()
+            return
+
+        if stripped_path == "api/logout":
+            self.handle_api_logout()
+            return
+
+        if stripped_path == "api/test_node":
+            self.handle_api_test_node()
+            return
+
+        if stripped_path == "api/test_nodes":
+            self.handle_api_test_nodes()
+            return
+
+        if stripped_path == "api/toggle_favorite":
+            self.handle_api_toggle_favorite()
+            return
+
+        if stripped_path == "api/connect":
+            self.handle_api_connect()
+            return
+
+        if stripped_path == "api/disconnect":
+            self.handle_api_disconnect()
+            return
+
+        if stripped_path == "api/test_proxy":
+            self.handle_api_test_proxy()
+            return
+
+        if stripped_path == "api/refresh_nodes":
+            self.handle_api_refresh_nodes()
+            return
+
+        if stripped_path == "api/update_routing":
+            self.handle_api_update_routing()
+            return
+
+        if stripped_path == "api/update_credentials":
+            self.handle_api_update_credentials()
+            return
+
+        if stripped_path == "api/update_settings":
+            self.handle_api_update_settings()
+            return
+
+        if stripped_path == "api/auto_switch":
+            self.handle_api_auto_switch()
+            return
+
+        if stripped_path == "api/maintain":
+            self.handle_api_maintain()
             return
 
         self.send_json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
@@ -251,11 +271,11 @@ class VPNRequestHandler(BaseHTTPRequestHandler):
             session_id = os.urandom(32).hex()
             with state_lock:
                 active_sessions[session_id] = time.time() + SESSION_TIMEOUT
-            self.send_json(HTTPStatus.OK, {"session_id": session_id, "success": True})
+            self.send_json(HTTPStatus.OK, {"ok": True, "session_id": session_id})
             log_audit("login", "Web", f"Successful login from {self.client_address[0]}")
         else:
             _record_login_attempt(self.client_address[0])
-            self.send_json(HTTPStatus.UNAUTHORIZED, {"error": "Invalid credentials"})
+            self.send_json(HTTPStatus.UNAUTHORIZED, {"error": "账号或密码不正确"})
 
     def handle_api_status(self) -> None:
         from vpn.openvpn import active_openvpn_running
@@ -279,7 +299,8 @@ class VPNRequestHandler(BaseHTTPRequestHandler):
             else:
                 export_node["config_text"] = node.get("config_text", "")
             export_nodes.append(export_node)
-        self.send_json(HTTPStatus.OK, {"nodes": export_nodes})
+        state = get_state()
+        self.send_json(HTTPStatus.OK, {"nodes": export_nodes, "state": state})
 
     def handle_api_node(self, node_id: str) -> None:
         nodes = read_nodes()
@@ -323,54 +344,137 @@ class VPNRequestHandler(BaseHTTPRequestHandler):
             logs = list(_audit_logs)
         self.send_json(HTTPStatus.OK, {"logs": logs})
 
-    def handle_api_test_node(self, query) -> None:
-        node_id = query.get("node_id", [None])[0]
+    def handle_api_test_node(self) -> None:
+        body = self.read_body()
+        node_id = body.get("id", "")
         if not node_id:
-            self.send_json(HTTPStatus.BAD_REQUEST, {"error": "node_id is required"})
+            self.send_json(HTTPStatus.BAD_REQUEST, {"error": "id is required"})
             return
         from vpn.nodes import test_node_by_id
         try:
-            result = test_node_by_id(node_id)
+            result = test_node_by_id(str(node_id))
             log_audit("test_node", "Web", f"Test node: {node_id}")
-            self.send_json(HTTPStatus.OK, result)
+            if isinstance(result, dict) and result.get("ok"):
+                self.send_json(HTTPStatus.OK, result)
+            else:
+                self.send_json(HTTPStatus.OK, {"ok": False, "error": result.get("error", "测试失败") if isinstance(result, dict) else str(result)})
         except Exception as e:
             self.send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(e)})
 
-    def handle_api_test_multiple(self, query) -> None:
-        node_ids = query.get("node_ids", [])
+    def handle_api_test_nodes(self) -> None:
+        body = self.read_body()
+        node_ids = body.get("ids", [])
         if not node_ids:
-            self.send_json(HTTPStatus.BAD_REQUEST, {"error": "node_ids is required"})
+            self.send_json(HTTPStatus.BAD_REQUEST, {"error": "ids is required"})
             return
         from vpn.nodes import test_multiple_nodes
         try:
-            results = test_multiple_nodes(node_ids)
-            log_audit("test_multiple", "Web", f"Test {len(node_ids)} nodes")
-            self.send_json(HTTPStatus.OK, {"results": results})
+            threading.Thread(target=test_multiple_nodes, args=(node_ids,), daemon=True).start()
+            log_audit("test_nodes", "Web", f"Test {len(node_ids)} nodes")
+            self.send_json(HTTPStatus.OK, {"ok": True})
         except Exception as e:
             self.send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(e)})
 
-    def handle_api_connect(self, query) -> None:
-        node_id = query.get("node_id", [None])[0]
+    def handle_api_toggle_favorite(self) -> None:
+        body = self.read_body()
+        node_id = str(body.get("id", ""))
+        if not node_id:
+            self.send_json(HTTPStatus.BAD_REQUEST, {"error": "id is required"})
+            return
+        ui_cfg = _cached_load_ui_config()
+        fav_ids = list(ui_cfg.get("favorite_node_ids", []))
+        if node_id in fav_ids:
+            fav_ids.remove(node_id)
+        else:
+            fav_ids.append(node_id)
+        ui_cfg["favorite_node_ids"] = fav_ids
+        save_ui_config(ui_cfg)
+        log_audit("toggle_favorite", "Web", f"Toggle favorite: {node_id}")
+        self.send_json(HTTPStatus.OK, {"ok": True, "favorite_node_ids": fav_ids})
+
+    def handle_api_connect(self) -> None:
+        body = self.read_body()
+        node_id = str(body.get("id", ""))
         from vpn.nodes import connect_node
         try:
-            result = connect_node(node_id)
+            connect_node(node_id)
             log_audit("connect", "Web", f"Connected to node: {node_id}")
-            self.send_json(HTTPStatus.OK, result)
+            self.send_json(HTTPStatus.OK, {"ok": True})
         except Exception as e:
-            self.send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(e)})
+            self.send_json(HTTPStatus.OK, {"ok": False, "error": str(e)})
 
     def handle_api_disconnect(self) -> None:
         from vpn.openvpn import stop_active_openvpn
         stop_active_openvpn()
         log_audit("disconnect", "Web", "Manual disconnect")
-        self.send_json(HTTPStatus.OK, {"success": True})
+        self.send_json(HTTPStatus.OK, {"ok": True})
+
+    def handle_api_test_proxy(self) -> None:
+        from core.state import check_proxy_health
+        try:
+            result = check_proxy_health()
+            if result.get("ok"):
+                self.send_json(HTTPStatus.OK, {"ok": True, "ip": result.get("ip", "-"), "latency_ms": result.get("latency_ms", 0)})
+            else:
+                self.send_json(HTTPStatus.OK, {"ok": False, "error": result.get("error", "代理不可用")})
+        except Exception as e:
+            self.send_json(HTTPStatus.OK, {"ok": False, "error": str(e)})
+
+    def handle_api_refresh_nodes(self) -> None:
+        from vpn.nodes import maintain_valid_nodes
+        threading.Thread(target=maintain_valid_nodes, kwargs={"force": True}, daemon=True).start()
+        log_audit("refresh_nodes", "Web", "Manual refresh triggered")
+        self.send_json(HTTPStatus.OK, {"ok": True})
+
+    def handle_api_update_routing(self) -> None:
+        body = self.read_body()
+        ui_cfg = _cached_load_ui_config()
+        for key in ("routing_mode", "force_country", "routing_ip_type", "fav_fail_fallback"):
+            if key in body:
+                ui_cfg[key] = body[key]
+        save_ui_config(ui_cfg)
+        log_audit("update_routing", "Web", "Routing updated")
+        self.send_json(HTTPStatus.OK, {"ok": True})
+
+    def handle_api_update_credentials(self) -> None:
+        body = self.read_body()
+        ui_cfg = _cached_load_ui_config()
+        restart_needed = False
+        old_port = ui_cfg.get("port", 8790)
+        old_suffix = ui_cfg.get("secret_path", "")
+        for key in ("username", "password", "port", "secret_path"):
+            if key in body and body[key]:
+                ui_cfg[key] = body[key]
+        if ui_cfg.get("port", old_port) != old_port or ui_cfg.get("secret_path", old_suffix) != old_suffix:
+            restart_needed = True
+        save_ui_config(ui_cfg)
+        log_audit("update_credentials", "Web", "Credentials updated")
+        self.send_json(HTTPStatus.OK, {"ok": True, "restart_needed": restart_needed})
+
+    def handle_api_update_settings(self) -> None:
+        body = self.read_body()
+        ui_cfg = _cached_load_ui_config()
+        old_proxy_port = ui_cfg.get("proxy_port", 7928)
+        restart_needed = False
+        for key in ("proxy_port", "routing_mode", "force_country", "routing_ip_type", "min_health_score", "upstream_proxy"):
+            if key in body:
+                ui_cfg[key] = body[key]
+        if ui_cfg.get("proxy_port", old_proxy_port) != old_proxy_port:
+            restart_needed = True
+        save_ui_config(ui_cfg)
+        log_audit("update_settings", "Web", "Settings updated")
+        self.send_json(HTTPStatus.OK, {"ok": True, "restart_needed": restart_needed})
+
+    def handle_api_logout(self) -> None:
+        log_audit("logout", "Web", "User logged out")
+        self.send_json(HTTPStatus.OK, {"ok": True})
 
     def handle_api_auto_switch(self) -> None:
         from vpn.nodes import auto_switch_node
         try:
             auto_switch_node()
             log_audit("auto_switch", "Web", "Auto switch triggered")
-            self.send_json(HTTPStatus.OK, {"success": True})
+            self.send_json(HTTPStatus.OK, {"ok": True})
         except Exception as e:
             self.send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(e)})
 
@@ -378,44 +482,36 @@ class VPNRequestHandler(BaseHTTPRequestHandler):
         from vpn.nodes import maintain_valid_nodes
         threading.Thread(target=maintain_valid_nodes, daemon=True).start()
         log_audit("maintain", "Web", "Manual maintenance triggered")
-        self.send_json(HTTPStatus.OK, {"success": True, "message": "Maintenance started"})
+        self.send_json(HTTPStatus.OK, {"ok": True, "message": "Maintenance started"})
 
-    def handle_api_settings(self, query) -> None:
+    def handle_api_settings_get(self) -> None:
         ui_cfg = _cached_load_ui_config()
         result = {k: v for k, v in ui_cfg.items() if k != "password"}
         self.send_json(HTTPStatus.OK, result)
 
-    def handle_api_settings_post(self) -> None:
-        body = self.read_body()
-        if not _validate_csrf_token(body.get("csrf_token")):
-            self.send_json(HTTPStatus.FORBIDDEN, {"error": "Invalid CSRF token"})
-            return
-
-        ui_cfg = _cached_load_ui_config()
-        updates = ["port", "proxy_port", "routing_mode", "force_country", "routing_ip_type", "min_health_score", "connection_enabled", "fixed_node_id", "favorite_node_ids", "fav_fail_fallback", "upstream_proxy"]
-        for key in updates:
-            if key in body:
-                ui_cfg[key] = body[key]
-
-        save_ui_config(ui_cfg)
-        log_audit("settings_update", "Web", "Settings updated")
-        self.send_json(HTTPStatus.OK, {"success": True})
-
-    def handle_api_favorites(self, query) -> None:
-        ui_cfg = _cached_load_ui_config()
-        self.send_json(HTTPStatus.OK, {"favorite_node_ids": ui_cfg.get("favorite_node_ids", [])})
-
-    def handle_api_favorites_post(self) -> None:
-        body = self.read_body()
-        if not _validate_csrf_token(body.get("csrf_token")):
-            self.send_json(HTTPStatus.FORBIDDEN, {"error": "Invalid CSRF token"})
-            return
-
-        ui_cfg = _cached_load_ui_config()
-        ui_cfg["favorite_node_ids"] = body.get("favorite_node_ids", [])
-        save_ui_config(ui_cfg)
-        log_audit("favorites_update", "Web", f"Favorites updated: {len(ui_cfg['favorite_node_ids'])} nodes")
-        self.send_json(HTTPStatus.OK, {"success": True})
+    def handle_api_gateway_status(self) -> None:
+        from vpn.openvpn import active_openvpn_running
+        services = []
+        # Web backend
+        services.append({"name": "Web 管理后台", "status": "running", "details": f"PID {os.getpid()}"})
+        # OpenVPN
+        ovpn_running = active_openvpn_running()
+        services.append({"name": "OpenVPN 连接核心", "status": "running" if ovpn_running else "stopped", "details": "-"})
+        # Proxy server
+        from core.constants import LOCAL_PROXY_HOST, LOCAL_PROXY_PORT
+        proxy_ok = False
+        try:
+            import socket as _sock
+            af = _sock.AF_INET6 if ":" in LOCAL_PROXY_HOST else _sock.AF_INET
+            s = _sock.socket(af, _sock.SOCK_STREAM)
+            s.settimeout(1)
+            s.connect((LOCAL_PROXY_HOST, LOCAL_PROXY_PORT))
+            s.close()
+            proxy_ok = True
+        except Exception:
+            pass
+        services.append({"name": "代理网关", "status": "running" if proxy_ok else "stopped", "details": f"{LOCAL_PROXY_HOST}:{LOCAL_PROXY_PORT}"})
+        self.send_json(HTTPStatus.OK, {"ok": True, "services": services})
 
     def handle_api_csrf_token(self) -> None:
         token = _generate_csrf_token()
