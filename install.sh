@@ -145,6 +145,9 @@ Restart=always
 RestartSec=5
 Environment=PYTHONPATH=${INSTALL_DIR}
 EnvironmentFile=-/etc/default/aimilivpn
+LimitNOFILE=65535
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
@@ -157,11 +160,15 @@ elif command -v rc-service >/dev/null 2>&1; then
 #!/sbin/openrc-run
 
 description="AimiliVPN OpenVPN Manager with HTTP/SOCKS5 Proxy"
+supervisor="supervise-daemon"
 command="/usr/bin/python3"
 command_args="${INSTALL_DIR}/vpngate_manager.py"
 command_background="yes"
 directory="${INSTALL_DIR}"
 pidfile="/run/aimilivpn.pid"
+respawn_period="5"
+output_log="/var/log/aimilivpn.log"
+error_log="/var/log/aimilivpn.log"
 
 depend() {
     need net
@@ -170,6 +177,9 @@ depend() {
 EOF
     chmod +x /etc/init.d/aimilivpn
     rc-update add aimilivpn default
+    # 预创建日志文件避免 OpenRC 权限问题
+    touch /var/log/aimilivpn.log 2>/dev/null || true
+    chmod 644 /var/log/aimilivpn.log 2>/dev/null || true
 else
     echo -e "${YELLOW}警告: 未能检测到 systemd 或 OpenRC，请手动管理服务。${PLAIN}"
 fi
@@ -189,7 +199,8 @@ import termios
 import shutil
 
 INSTALL_DIR = "/opt/aimilivpn"
-LOG_FILE = "/opt/aimilivpn/vpngate_data/vpngate.log"
+LOG_DIR = "/opt/aimilivpn/vpngate_data/logs"
+OPENRC_LOG_FILE = "/var/log/aimilivpn.log"
 
 def generate_random_password():
     import secrets
@@ -418,6 +429,17 @@ def print_status():
     print_line(format_line(f"代理网关 (Port {proxy_port})", gateway_status))
     print_line(format_line(f"管理后台 (Port {ui_port})", backend_status))
     print_line(format_line("连接核心 (OpenVPN)", openvpn_status))
+    # 网络转发参数检测（影响 VPN 隧道流量转发）
+    ip_fwd_val = "?"
+    try:
+        with open("/proc/sys/net/ipv4/ip_forward", "r") as f:
+            ip_fwd_val = f.read().strip()
+    except Exception:
+        pass
+    ip_fwd_status = f"{green}已启用 (1){reset}" if ip_fwd_val == "1" else f"{red}未启用 ({ip_fwd_val}){reset}"
+    print_line(format_line("系统转发 (ip_forward)", ip_fwd_status))
+    if ip_fwd_val != "1" and not gateway_ok:
+        print_line(f"  {yellow}提示: ip_forward 未启用会导致代理网关不可用，请在宿主机执行: echo 1 > /proc/sys/net/ipv4/ip_forward{reset}")
     
     host_cfg = cfg.get("host", "::")
     if host_cfg in ("127.0.0.1", "localhost"):
@@ -503,14 +525,39 @@ def restart_service():
 
 def show_logs():
     print("正在查看 AimiliVPN 日志 (按 Ctrl+C 退出)...", flush=True)
-    if os.path.exists(LOG_FILE):
+    # 优先 systemd journal（最可靠，含 print stdout）
+    if shutil.which("journalctl") and os.path.exists("/run/systemd/system"):
         try:
-            subprocess.run(["tail", "-f", "-n", "50", LOG_FILE])
+            subprocess.run(["journalctl", "-u", "aimilivpn", "-f", "-n", "50"])
+            return
         except KeyboardInterrupt:
+            return
+        except Exception:
             pass
-    else:
-        print(f"日志文件不存在: {LOG_FILE}")
-        time.sleep(2)
+    # 回退到 OpenRC 日志文件
+    if os.path.exists(OPENRC_LOG_FILE):
+        try:
+            subprocess.run(["tail", "-f", "-n", "50", OPENRC_LOG_FILE])
+            return
+        except KeyboardInterrupt:
+            return
+        except Exception:
+            pass
+    # 最后回退到 JSON 日志目录的最新文件
+    if os.path.isdir(LOG_DIR):
+        try:
+            files = sorted([f for f in os.listdir(LOG_DIR) if f.endswith(".json")], reverse=True)
+            if files:
+                latest = os.path.join(LOG_DIR, files[0])
+                print(f"(跟随最新日志文件: {files[0]})")
+                subprocess.run(["tail", "-f", "-n", "50", latest])
+                return
+        except KeyboardInterrupt:
+            return
+        except Exception:
+            pass
+    print("未找到可用日志源。可尝试: journalctl -u aimilivpn -f  或  tail -f /var/log/aimilivpn.log")
+    time.sleep(2)
 
 def update_service():
     print("正在获取远程更新并检测版本...", flush=True)
@@ -562,7 +609,11 @@ def update_service():
             subprocess.run(["find", ".", "-type", "d", "-name", "__pycache__", "-exec", "rm", "-rf", "{}", "+"], check=False)
             
             print("代码拉取成功，正在重新运行安装脚本...", flush=True)
-            subprocess.run(["bash", "install.sh"])
+            result = subprocess.run(["bash", "install.sh"])
+            if result.returncode != 0:
+                print(f"\n更新过程中安装脚本返回非零退出码 ({result.returncode})，请检查上方输出排查问题。")
+                time.sleep(4)
+                return
             print("更新已完成！")
             time.sleep(2)
         except Exception as e:
@@ -1160,25 +1211,41 @@ elif command -v iptables >/dev/null 2>&1; then
     if ! iptables -C INPUT -p tcp --dport ${FIREWALL_PROXY_PORT} -j ACCEPT 2>/dev/null; then
         iptables -I INPUT -p tcp --dport ${FIREWALL_PROXY_PORT} -j ACCEPT 2>/dev/null || true
     fi
-    echo -e "${GREEN}  -> iptables 已放行端口 ${FIREWALL_UI_PORT}/tcp, ${FIREWALL_PROXY_PORT}/tcp${PLAIN}"
+    # IPv6 放行（Web UI 默认绑定 :: 双栈）
+    if command -v ip6tables >/dev/null 2>&1; then
+        if ! ip6tables -C INPUT -p tcp --dport ${FIREWALL_UI_PORT} -j ACCEPT 2>/dev/null; then
+            ip6tables -I INPUT -p tcp --dport ${FIREWALL_UI_PORT} -j ACCEPT 2>/dev/null || true
+        fi
+        if ! ip6tables -C INPUT -p tcp --dport ${FIREWALL_PROXY_PORT} -j ACCEPT 2>/dev/null; then
+            ip6tables -I INPUT -p tcp --dport ${FIREWALL_PROXY_PORT} -j ACCEPT 2>/dev/null || true
+        fi
+    fi
+    echo -e "${GREEN}  -> iptables 已放行端口 ${FIREWALL_UI_PORT}/tcp, ${FIREWALL_PROXY_PORT}/tcp (含 IPv6)${PLAIN}"
 else
     echo -e "${YELLOW}  -> 未检测到防火墙工具 (ufw/firewalld/iptables)，跳过防火墙配置${PLAIN}"
     echo -e "${YELLOW}  -> 如果无法访问网页，请手动放行端口 ${FIREWALL_UI_PORT}/tcp 和 ${FIREWALL_PROXY_PORT}/tcp${PLAIN}"
 fi
 
 # 8. Start service
-# 8.5 Optimize network parameters (rp_filter for policy routing)
-echo -e "\n正在优化网络参数 (配置反向路径过滤 rp_filter=2 以支持策略路由)..."
+# 8.5 Optimize network parameters (IPv4 forwarding + rp_filter for policy routing)
+echo -e "\n正在优化网络参数 (启用 IPv4 转发 + 配置反向路径过滤 rp_filter=2 以支持策略路由)..."
+# Enable IPv4 forwarding first (required for VPN tunnel -> proxy port traffic forwarding)
 if [ -d "/etc/sysctl.d" ]; then
     cat > /etc/sysctl.d/99-aimilivpn.conf <<EOF
+net.ipv4.ip_forward = 1
 net.ipv4.conf.all.rp_filter = 2
 net.ipv4.conf.default.rp_filter = 2
 EOF
     sysctl -p /etc/sysctl.d/99-aimilivpn.conf >/dev/null 2>&1 || true
 else
     # Fallback to appending to /etc/sysctl.conf
-    if ! grep -q "net.ipv4.conf.all.rp_filter" /etc/sysctl.conf; then
+    if ! grep -q "net.ipv4.ip_forward" /etc/sysctl.conf; then
         echo "" >> /etc/sysctl.conf
+        echo "net.ipv4.ip_forward = 1" >> /etc/sysctl.conf
+    else
+        sed -i 's/net.ipv4.ip_forward\s*=\s*[0-9]/net.ipv4.ip_forward = 1/g' /etc/sysctl.conf
+    fi
+    if ! grep -q "net.ipv4.conf.all.rp_filter" /etc/sysctl.conf; then
         echo "net.ipv4.conf.all.rp_filter = 2" >> /etc/sysctl.conf
         echo "net.ipv4.conf.default.rp_filter = 2" >> /etc/sysctl.conf
     else
@@ -1187,7 +1254,15 @@ else
     fi
     sysctl -p >/dev/null 2>&1 || true
 fi
-# Apply to currently active interfaces dynamically (prefer native proc write for BusyBox/Alpine compatibility)
+# Apply IPv4 forwarding dynamically (prefer native proc write for BusyBox/Alpine compatibility)
+echo "1" > /proc/sys/net/ipv4/ip_forward 2>/dev/null || sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1 || true
+# Verify IPv4 forwarding is enabled
+if [ "$(cat /proc/sys/net/ipv4/ip_forward 2>/dev/null)" != "1" ]; then
+    echo -e "${YELLOW}  -> 警告: IPv4 转发未能启用，VPN 隧道流量可能无法转发 (容器可能需要 --sysctl net.ipv4.ip_forward=1 或 host 网络模式)${PLAIN}"
+else
+    echo -e "${GREEN}  -> IPv4 转发已启用 (ip_forward=1)，VPN 隧道流量可正常转发${PLAIN}"
+fi
+# Apply rp_filter to currently active interfaces dynamically (prefer native proc write for BusyBox/Alpine compatibility)
 echo "2" > /proc/sys/net/ipv4/conf/all/rp_filter 2>/dev/null || sysctl -w net.ipv4.conf.all.rp_filter=2 >/dev/null 2>&1 || true
 echo "2" > /proc/sys/net/ipv4/conf/default/rp_filter 2>/dev/null || sysctl -w net.ipv4.conf.default.rp_filter=2 >/dev/null 2>&1 || true
 if [ -d "/proc/sys/net/ipv4/conf" ]; then

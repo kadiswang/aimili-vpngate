@@ -40,7 +40,7 @@ def load_ui_config() -> dict[str, Any]:
     auth_file = DATA_DIR / "ui_auth.json"
     config = {
         "username": "",
-        "secret_path": "EJsW2EeBo9lY",
+        "secret_path": "",
         "password": "",
         "host": UI_HOST,
         "port": UI_PORT,
@@ -67,6 +67,12 @@ def load_ui_config() -> dict[str, Any]:
         except Exception as e:
             print(f"[配置警告] 读取 ui_auth.json 配置失败，将使用默认配置: {e}", flush=True)
 
+    # secret_path 必须非空且足够长，否则生成随机值（避免公开默认值导致鉴权失效）
+    sp = config.get("secret_path", "")
+    if not sp or len(sp) < 8:
+        config["secret_path"] = secrets.token_urlsafe(12)[:16]
+        updated = True
+
     if not config.get("username"):
         config["username"] = generate_random_username()
         updated = True
@@ -74,6 +80,13 @@ def load_ui_config() -> dict[str, Any]:
     if not config.get("password"):
         config["password"] = generate_random_password()
         updated = True
+
+    # 尝试为配置文件设置 0o600 权限，保护明文凭证
+    if not auth_file.exists():
+        try:
+            os.umask(0o077)
+        except Exception:
+            pass
 
     normalized_port = bounded_int(config.get("port"), UI_PORT, 1, 65535)
     if normalized_port != config.get("port"):
@@ -90,12 +103,16 @@ def load_ui_config() -> dict[str, Any]:
         config["proxy_port"] = normalized_proxy_port
         updated = True
 
-    if not auth_file.exists() or updated:
+    if updated:
         try:
             DATA_DIR.mkdir(exist_ok=True, parents=True)
             tmp = auth_file.with_suffix(".tmp")
             tmp.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
             tmp.replace(auth_file)
+            try:
+                auth_file.chmod(0o600)
+            except OSError:
+                pass
         except Exception:
             pass
 

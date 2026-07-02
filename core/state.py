@@ -150,6 +150,14 @@ def register_event_callback(cb: callable) -> None:
         _event_callbacks.append(cb)
 
 
+def unregister_event_callback(cb: callable) -> None:
+    with _event_stream_lock:
+        try:
+            _event_callbacks.remove(cb)
+        except ValueError:
+            pass
+
+
 def broadcast_event(event_type: str, data: dict[str, Any] | None = None) -> None:
     with _event_stream_lock:
         for cb in _event_callbacks:
@@ -256,6 +264,73 @@ def _validate_csrf_token(token: str | None) -> bool:
             return False
         _csrf_tokens[token] = (time.time() + CSRF_TOKEN_EXPIRY, token)
     return True
+
+
+def _parse_session_cookie(cookie_header: str | None) -> str:
+    """从 Cookie 头解析 session_id。"""
+    if not cookie_header:
+        return ""
+    for part in cookie_header.split(";"):
+        part = part.strip()
+        if part.startswith("session_id="):
+            return part[len("session_id="):]
+    return ""
+
+
+def get_session_id_from_headers(headers) -> str:
+    """从请求头获取 session_id（优先 Cookie，其次 X-Session-Token）。"""
+    token = _parse_session_cookie(headers.get("Cookie"))
+    if token:
+        return token
+    return headers.get("X-Session-Token", "") or ""
+
+
+def check_request_session(headers) -> bool:
+    """校验请求是否携带有效且未过期的 session。"""
+    from .constants import SESSION_TIMEOUT
+    sid = get_session_id_from_headers(headers)
+    if not sid:
+        return False
+    with state_lock:
+        _cleanup_expired_sessions()
+        exp = active_sessions.get(sid)
+        if exp is None:
+            return False
+        if exp <= time.time():
+            active_sessions.pop(sid, None)
+            return False
+        # sliding renewal: 续期以保持活跃用户不掉线
+        active_sessions[sid] = time.time() + SESSION_TIMEOUT
+        return True
+
+
+def delete_session(headers) -> bool:
+    """注销当前请求对应的 session。"""
+    sid = get_session_id_from_headers(headers)
+    if not sid:
+        return False
+    with state_lock:
+        return active_sessions.pop(sid, None) is not None
+
+
+def _check_and_record_login_attempt(ip: str) -> bool:
+    """原子化登录限流：检查通过即预占一个槽位，避免并发下突破阈值。"""
+    from .constants import LOGIN_RATE_LIMIT_WINDOW, LOGIN_RATE_LIMIT_MAX_ATTEMPTS
+    now = time.time()
+    with _login_attempts_lock:
+        timestamps = [t for t in _login_attempts.get(ip, []) if now - t < LOGIN_RATE_LIMIT_WINDOW]
+        if len(timestamps) >= LOGIN_RATE_LIMIT_MAX_ATTEMPTS:
+            _login_attempts[ip] = timestamps
+            return False
+        timestamps.append(now)
+        _login_attempts[ip] = timestamps
+        return True
+
+
+def clear_login_attempts(ip: str) -> None:
+    """登录成功后清除该 IP 的失败/尝试记录。"""
+    with _login_attempts_lock:
+        _login_attempts.pop(ip, None)
 
 
 def _cached_load_ui_config() -> dict[str, Any]:

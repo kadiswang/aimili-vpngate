@@ -81,7 +81,7 @@ def check_credentials(username: str | None, password: str | None) -> bool:
 def dns_query_over_tun0(host: str, qtype: int, dns_server: str, timeout: float) -> str | None:
     sock = None
     try:
-        tx_id = random.getrandbits(16).to_bytes(2, "big")
+        tx_id = secrets.randbits(16).to_bytes(2, "big")
         flags = b"\x01\x00"
         questions = b"\x00\x01"
         rrs = b"\x00\x00\x00\x00\x00\x00"

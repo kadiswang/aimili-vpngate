@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+import base64
+import hashlib
+import hmac
 import json
 import os
 import socket
@@ -12,15 +15,17 @@ from typing import Any
 
 from core.constants import (
     DATA_DIR, UI_HOST, UI_PORT, NODE_EXPORT_FIELDS, LOG_TAIL_LINES,
-    MAX_CONFIG_TEXT_LENGTH, SESSION_TIMEOUT,
+    MAX_CONFIG_TEXT_LENGTH, SESSION_TIMEOUT, LOCAL_PROXY_HOST, LOCAL_PROXY_PORT,
 )
+import core.state
 from core.state import (
     state_lock, active_sessions, ws_clients_lock, active_ws_clients,
-    read_nodes, write_json, log_to_json, log_audit,
-    _cached_load_ui_config, save_ui_config, _check_login_rate_limit,
-    _record_login_attempt, _generate_csrf_token, _validate_csrf_token,
-    _cleanup_expired_sessions, get_state, last_collector_heartbeat,
-    last_checker_heartbeat, server_start_time, _audit_logs, _audit_log_lock,
+    read_nodes, write_json, log_audit,
+    _cached_load_ui_config, save_ui_config,
+    _generate_csrf_token, _validate_csrf_token,
+    get_state, _audit_logs, _audit_log_lock,
+    check_request_session, delete_session, get_session_id_from_headers,
+    _check_and_record_login_attempt, clear_login_attempts,
 )
 
 import urllib.parse
@@ -43,22 +48,48 @@ def _ipv4_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
     return _orig_getaddrinfo(host, port, family, type, proto, flags)
 
 
+# 优先 IPv4 解析，保证 VPN 节点探测在双栈环境下行为可预期
 socket.getaddrinfo = _ipv4_getaddrinfo
+
+
+_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
+_MAX_REQUEST_BODY_BYTES = 1 * 1024 * 1024  # 1 MB 上限，防止 OOM DoS
+
+
+def _path_matches_secret(path: str, secret_path: str) -> bool:
+    """secret_path 必须非空且作为完整 URL 段匹配（前缀 + '/' 或完全相等）。"""
+    if not secret_path:
+        return False
+    return path == secret_path or path.startswith(secret_path + "/")
+
+
+def _is_safe_static_path(stripped_path: str) -> bool:
+    """防止路径穿越：仅允许不含 .. 的纯文件名，且解析后仍在 templates 目录内。"""
+    if not stripped_path or ".." in stripped_path.split("/"):
+        return False
+    candidate = (_TEMPLATES_DIR / stripped_path).resolve()
+    try:
+        candidate.relative_to(_TEMPLATES_DIR)
+    except ValueError:
+        return False
+    return candidate.is_file()
 
 
 class DualStackHTTPServer(ThreadingHTTPServer):
     def __init__(self, server_address, RequestHandlerClass, bind_and_activate=True):
         host, port = server_address
-        if ":" in host or host == "":
+        if host == "":
+            host = "::"
+        if ":" in host:
             self.address_family = socket.AF_INET6
         else:
             self.address_family = socket.AF_INET
 
         try:
-            super().__init__(server_address, RequestHandlerClass, bind_and_activate)
+            super().__init__((host, port), RequestHandlerClass, bind_and_activate)
         except OSError as e:
             if self.address_family == socket.AF_INET6:
-                fallback_host = "0.0.0.0" if host in ("::", "") else "127.0.0.1"
+                fallback_host = "0.0.0.0" if host == "::" else "127.0.0.1"
                 print(f"[警告] 绑定 Web 管理后台 IPv6 {host}:{port} 失败 ({e})，正在尝试回退至 IPv4 {fallback_host} ...", flush=True)
                 try:
                     self.socket.close()
@@ -73,8 +104,8 @@ class DualStackHTTPServer(ThreadingHTTPServer):
         if self.address_family == socket.AF_INET6:
             try:
                 self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-            except OSError:
-                pass
+            except OSError as e:
+                print(f"[警告] 设置 IPV6_V6ONLY=0 失败，IPv4 客户端可能无法通过 IPv6 socket 访问: {e}", flush=True)
         super().server_bind()
 
 
@@ -82,10 +113,13 @@ class VPNRequestHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
 
-    def send_json(self, status: int, data: Any) -> None:
+    def send_json(self, status: int, data: Any, extra_headers: dict[str, str] | None = None) -> None:
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-cache")
+        if extra_headers:
+            for k, v in extra_headers.items():
+                self.send_header(k, v)
         self.end_headers()
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode("utf-8"))
 
@@ -117,61 +151,69 @@ class VPNRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urllib.parse.urlsplit(self.path)
         path = parsed.path.lstrip("/")
-        query = urllib.parse.parse_qs(parsed.query)
 
         ui_cfg = _cached_load_ui_config()
         secret_path = ui_cfg.get("secret_path", "")
 
-        if not path.startswith(secret_path):
+        # secret_path 必须非空且作为完整 URL 段匹配，否则一律返回登录页
+        if not _path_matches_secret(path, secret_path):
             self.send_html(get_login_page(ui_cfg, ""))
             return
 
         stripped_path = path[len(secret_path):].lstrip("/")
 
+        # 首页 HTML 与公开静态资源放行（CSS/JS 等），由前端处理登录态
         if stripped_path == "":
             self.send_html(get_index_page())
             return
 
-        if stripped_path == "api/status":
-            self.handle_api_status()
-            return
-
-        if stripped_path == "api/nodes":
-            self.handle_api_nodes()
-            return
-
-        if stripped_path.startswith("api/node/"):
-            node_id = stripped_path[9:]
-            self.handle_api_node(node_id)
-            return
-
-        if stripped_path == "api/logs":
-            self.handle_api_logs()
-            return
-
-        if stripped_path == "api/audit":
-            self.handle_api_audit()
-            return
-
+        # 公开端点：登录前可访问
         if stripped_path == "api/csrf_token":
             self.handle_api_csrf_token()
             return
 
-        if stripped_path == "api/gateway_status":
-            self.handle_api_gateway_status()
+        # 其余 API 端点需要 session 鉴权
+        if stripped_path.startswith("api/"):
+            if not check_request_session(self.headers):
+                self.send_json(HTTPStatus.UNAUTHORIZED, {"error": "未登录或会话已过期", "need_login": True})
+                return
+
+            if stripped_path == "api/status":
+                self.handle_api_status()
+                return
+            if stripped_path == "api/nodes":
+                self.handle_api_nodes()
+                return
+            if stripped_path.startswith("api/node/"):
+                node_id = stripped_path[9:]
+                self.handle_api_node(node_id)
+                return
+            if stripped_path == "api/logs":
+                self.handle_api_logs()
+                return
+            if stripped_path == "api/audit":
+                self.handle_api_audit()
+                return
+            if stripped_path == "api/gateway_status":
+                self.handle_api_gateway_status()
+                return
+            if stripped_path == "api/settings":
+                self.handle_api_settings_get()
+                return
+            self.send_json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
             return
 
-        if stripped_path == "api/settings":
-            self.handle_api_settings_get()
-            return
-
+        # WebSocket 升级（带 session 校验）
         if stripped_path == "ws":
+            if not check_request_session(self.headers):
+                self.send_json(HTTPStatus.UNAUTHORIZED, {"error": "未登录"})
+                return
             self.handle_websocket()
             return
 
-        static_path = Path(__file__).parent.parent / "templates" / stripped_path
-        if static_path.exists():
-            self.send_file(static_path)
+        # 静态资源（防路径穿越）
+        if _is_safe_static_path(stripped_path):
+            self.send_file(_TEMPLATES_DIR / stripped_path)
             return
 
         self.send_json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
@@ -183,64 +225,66 @@ class VPNRequestHandler(BaseHTTPRequestHandler):
         ui_cfg = _cached_load_ui_config()
         secret_path = ui_cfg.get("secret_path", "")
 
-        if not path.startswith(secret_path):
+        # 根路径 api/login 放行：登录页在 / 下，无需知道 secret_path 即可提交
+        if path == "api/login":
+            self.handle_api_login()
+            return
+
+        if not _path_matches_secret(path, secret_path):
             self.send_json(HTTPStatus.UNAUTHORIZED, {"error": "Unauthorized"})
             return
 
         stripped_path = path[len(secret_path):].lstrip("/")
 
+        # 登录端点豁免 session/CSRF
         if stripped_path == "api/login":
             self.handle_api_login()
+            return
+
+        # 其余 POST 端点：必须同时满足 session 鉴权 + CSRF 校验
+        if not check_request_session(self.headers):
+            self.send_json(HTTPStatus.UNAUTHORIZED, {"error": "未登录或会话已过期", "need_login": True})
+            return
+        if not _validate_csrf_token(self.headers.get("X-CSRF-Token")):
+            self.send_json(HTTPStatus.FORBIDDEN, {"error": "CSRF 校验失败，请刷新页面后重试"})
             return
 
         if stripped_path == "api/logout":
             self.handle_api_logout()
             return
-
         if stripped_path == "api/test_node":
             self.handle_api_test_node()
             return
-
         if stripped_path == "api/test_nodes":
             self.handle_api_test_nodes()
             return
-
         if stripped_path == "api/toggle_favorite":
             self.handle_api_toggle_favorite()
             return
-
         if stripped_path == "api/connect":
             self.handle_api_connect()
             return
-
         if stripped_path == "api/disconnect":
             self.handle_api_disconnect()
             return
-
         if stripped_path == "api/test_proxy":
             self.handle_api_test_proxy()
             return
-
         if stripped_path == "api/refresh_nodes":
             self.handle_api_refresh_nodes()
             return
-
         if stripped_path == "api/update_routing":
             self.handle_api_update_routing()
             return
-
         if stripped_path == "api/update_credentials":
             self.handle_api_update_credentials()
             return
-
         if stripped_path == "api/update_settings":
             self.handle_api_update_settings()
             return
-
         if stripped_path == "api/auto_switch":
             self.handle_api_auto_switch()
             return
-
         if stripped_path == "api/maintain":
             self.handle_api_maintain()
             return
@@ -248,8 +292,13 @@ class VPNRequestHandler(BaseHTTPRequestHandler):
         self.send_json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
 
     def read_body(self) -> dict[str, Any]:
-        content_length = int(self.headers.get("Content-Length", 0))
-        if content_length == 0:
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+        except (TypeError, ValueError):
+            return {}
+        if content_length <= 0:
+            return {}
+        if content_length > _MAX_REQUEST_BODY_BYTES:
             return {}
         try:
             body = self.rfile.read(content_length).decode("utf-8")
@@ -262,29 +311,46 @@ class VPNRequestHandler(BaseHTTPRequestHandler):
         username = body.get("username", "")
         password = body.get("password", "")
         ui_cfg = _cached_load_ui_config()
+        client_ip = self.client_address[0] if self.client_address else "unknown"
 
-        if not _check_login_rate_limit(self.client_address[0]):
-            self.send_json(HTTPStatus.TOO_MANY_REQUESTS, {"error": "Too many login attempts"})
+        # 原子化登录限流（检查通过即预占槽位，防并发突破阈值）
+        if not _check_and_record_login_attempt(client_ip):
+            self.send_json(HTTPStatus.TOO_MANY_REQUESTS, {"error": "登录尝试过于频繁，请稍后再试"})
             return
 
-        if username == ui_cfg.get("username") and password == ui_cfg.get("password"):
+        expected_user = ui_cfg.get("username", "")
+        expected_pwd = ui_cfg.get("password", "")
+        secret_path = ui_cfg.get("secret_path", "")
+        # 常量时间比较，防时序侧信道
+        user_ok = isinstance(username, str) and hmac.compare_digest(username, expected_user)
+        pwd_ok = isinstance(password, str) and hmac.compare_digest(password, expected_pwd)
+        if user_ok and pwd_ok:
+            clear_login_attempts(client_ip)
             session_id = os.urandom(32).hex()
             with state_lock:
                 active_sessions[session_id] = time.time() + SESSION_TIMEOUT
-            self.send_json(HTTPStatus.OK, {"ok": True, "session_id": session_id})
-            log_audit("login", "Web", f"Successful login from {self.client_address[0]}")
+                core.state._cleanup_expired_sessions()
+            cookie = (
+                f"session_id={session_id}; HttpOnly; SameSite=Strict; "
+                f"Max-Age={SESSION_TIMEOUT}; Path=/"
+            )
+            log_audit("login", "Web", f"Successful login from {client_ip}")
+            self.send_json(
+                HTTPStatus.OK,
+                {"ok": True, "session_id": session_id, "secret_path": secret_path},
+                extra_headers={"Set-Cookie": cookie},
+            )
         else:
-            _record_login_attempt(self.client_address[0])
             self.send_json(HTTPStatus.UNAUTHORIZED, {"error": "账号或密码不正确"})
 
     def handle_api_status(self) -> None:
         from vpn.openvpn import active_openvpn_running
         state = get_state()
         state["active_openvpn_running"] = active_openvpn_running()
-        state["last_collector_heartbeat"] = last_collector_heartbeat
-        state["last_checker_heartbeat"] = last_checker_heartbeat
-        state["server_start_time"] = server_start_time
-        state["uptime_seconds"] = int(time.time() - server_start_time)
+        state["last_collector_heartbeat"] = core.state.last_collector_heartbeat
+        state["last_checker_heartbeat"] = core.state.last_checker_heartbeat
+        state["server_start_time"] = core.state.server_start_time
+        state["uptime_seconds"] = int(time.time() - core.state.server_start_time)
         self.send_json(HTTPStatus.OK, state)
 
     def handle_api_nodes(self) -> None:
@@ -437,14 +503,29 @@ class VPNRequestHandler(BaseHTTPRequestHandler):
         self.send_json(HTTPStatus.OK, {"ok": True})
 
     def handle_api_update_credentials(self) -> None:
+        from core.constants import UI_PORT as _DEFAULT_UI_PORT
         body = self.read_body()
         ui_cfg = _cached_load_ui_config()
         restart_needed = False
-        old_port = ui_cfg.get("port", 8790)
+        old_port = ui_cfg.get("port", _DEFAULT_UI_PORT)
         old_suffix = ui_cfg.get("secret_path", "")
-        for key in ("username", "password", "port", "secret_path"):
-            if key in body and body[key]:
-                ui_cfg[key] = body[key]
+        # 类型校验：避免任意垃圾值写入配置
+        if "username" in body and isinstance(body["username"], str) and body["username"]:
+            ui_cfg["username"] = body["username"][:64]
+        if "password" in body and isinstance(body["password"], str) and body["password"]:
+            ui_cfg["password"] = body["password"][:128]
+        if "port" in body:
+            try:
+                new_port = int(body["port"])
+                if 1 <= new_port <= 65535 and new_port != ui_cfg.get("proxy_port"):
+                    ui_cfg["port"] = new_port
+            except (TypeError, ValueError):
+                pass
+        if "secret_path" in body and isinstance(body["secret_path"], str) and body["secret_path"]:
+            # secret_path 仅允许字母数字，避免注入或路径穿越
+            import re
+            if re.fullmatch(r"[A-Za-z0-9_-]{4,64}", body["secret_path"]):
+                ui_cfg["secret_path"] = body["secret_path"]
         if ui_cfg.get("port", old_port) != old_port or ui_cfg.get("secret_path", old_suffix) != old_suffix:
             restart_needed = True
         save_ui_config(ui_cfg)
@@ -452,13 +533,31 @@ class VPNRequestHandler(BaseHTTPRequestHandler):
         self.send_json(HTTPStatus.OK, {"ok": True, "restart_needed": restart_needed})
 
     def handle_api_update_settings(self) -> None:
+        from core.constants import LOCAL_PROXY_PORT as _DEFAULT_PROXY_PORT
         body = self.read_body()
         ui_cfg = _cached_load_ui_config()
-        old_proxy_port = ui_cfg.get("proxy_port", 7928)
+        old_proxy_port = ui_cfg.get("proxy_port", _DEFAULT_PROXY_PORT)
         restart_needed = False
-        for key in ("proxy_port", "routing_mode", "force_country", "routing_ip_type", "min_health_score", "upstream_proxy"):
-            if key in body:
-                ui_cfg[key] = body[key]
+        if "proxy_port" in body:
+            try:
+                new_proxy_port = int(body["proxy_port"])
+                if 1024 <= new_proxy_port <= 65535 and new_proxy_port != ui_cfg.get("port"):
+                    ui_cfg["proxy_port"] = new_proxy_port
+            except (TypeError, ValueError):
+                pass
+        if "routing_mode" in body and body["routing_mode"] in ("auto", "off", "force_country"):
+            ui_cfg["routing_mode"] = body["routing_mode"]
+        if "force_country" in body and isinstance(body["force_country"], str):
+            ui_cfg["force_country"] = body["force_country"][:64]
+        if "routing_ip_type" in body and body["routing_ip_type"] in ("all", "ipv4", "ipv6"):
+            ui_cfg["routing_ip_type"] = body["routing_ip_type"]
+        if "min_health_score" in body:
+            try:
+                ui_cfg["min_health_score"] = max(0, min(100, int(body["min_health_score"])))
+            except (TypeError, ValueError):
+                pass
+        if "upstream_proxy" in body and isinstance(body["upstream_proxy"], dict):
+            ui_cfg["upstream_proxy"] = body["upstream_proxy"]
         if ui_cfg.get("proxy_port", old_proxy_port) != old_proxy_port:
             restart_needed = True
         save_ui_config(ui_cfg)
@@ -466,8 +565,14 @@ class VPNRequestHandler(BaseHTTPRequestHandler):
         self.send_json(HTTPStatus.OK, {"ok": True, "restart_needed": restart_needed})
 
     def handle_api_logout(self) -> None:
-        log_audit("logout", "Web", "User logged out")
-        self.send_json(HTTPStatus.OK, {"ok": True})
+        deleted = delete_session(self.headers)
+        log_audit("logout", "Web", f"User logged out (session_removed={deleted})")
+        # 清除客户端 cookie
+        self.send_json(
+            HTTPStatus.OK,
+            {"ok": True},
+            extra_headers={"Set-Cookie": "session_id=; HttpOnly; SameSite=Strict; Max-Age=0; Path=/"},
+        )
 
     def handle_api_auto_switch(self) -> None:
         from vpn.nodes import auto_switch_node
@@ -486,30 +591,52 @@ class VPNRequestHandler(BaseHTTPRequestHandler):
 
     def handle_api_settings_get(self) -> None:
         ui_cfg = _cached_load_ui_config()
-        result = {k: v for k, v in ui_cfg.items() if k != "password"}
+        # 仅返回前端需要的非敏感字段，secret_path/username 等敏感信息不外泄
+        safe_fields = (
+            "host", "port", "proxy_port", "routing_mode", "force_country",
+            "routing_ip_type", "min_health_score", "connection_enabled",
+            "fixed_node_id", "favorite_node_ids", "fav_fail_fallback",
+            "upstream_proxy",
+        )
+        result = {k: v for k, v in ui_cfg.items() if k in safe_fields}
         self.send_json(HTTPStatus.OK, result)
+
+    def _check_proxy_port_listening(self) -> bool:
+        """检测代理端口是否在监听，对 ::/0.0.0.0 做归一化。"""
+        import socket as _sock
+        host = LOCAL_PROXY_HOST
+        if host in ("::", "0.0.0.0", ""):
+            # 先试 IPv6 本地，失败再试 IPv4 本地
+            for h, af in (("[::1]", _sock.AF_INET6), ("127.0.0.1", _sock.AF_INET), ("0.0.0.0", _sock.AF_INET)):
+                try:
+                    s = _sock.socket(af, _sock.SOCK_STREAM)
+                    s.settimeout(1)
+                    s.connect((h, LOCAL_PROXY_PORT))
+                    s.close()
+                    return True
+                except Exception:
+                    continue
+            return False
+        try:
+            af = _sock.AF_INET6 if ":" in host else _sock.AF_INET
+            s = _sock.socket(af, _sock.SOCK_STREAM)
+            s.settimeout(1)
+            s.connect((host, LOCAL_PROXY_PORT))
+            s.close()
+            return True
+        except Exception:
+            return False
 
     def handle_api_gateway_status(self) -> None:
         from vpn.openvpn import active_openvpn_running
         services = []
-        # Web backend
+        # Web 后端：进程在跑即说明本请求已到达，恒为 running
         services.append({"name": "Web 管理后台", "status": "running", "details": f"PID {os.getpid()}"})
         # OpenVPN
         ovpn_running = active_openvpn_running()
         services.append({"name": "OpenVPN 连接核心", "status": "running" if ovpn_running else "stopped", "details": "-"})
-        # Proxy server
-        from core.constants import LOCAL_PROXY_HOST, LOCAL_PROXY_PORT
-        proxy_ok = False
-        try:
-            import socket as _sock
-            af = _sock.AF_INET6 if ":" in LOCAL_PROXY_HOST else _sock.AF_INET
-            s = _sock.socket(af, _sock.SOCK_STREAM)
-            s.settimeout(1)
-            s.connect((LOCAL_PROXY_HOST, LOCAL_PROXY_PORT))
-            s.close()
-            proxy_ok = True
-        except Exception:
-            pass
+        # Proxy server（host 归一化，避免 connect(("::", port)) 误报）
+        proxy_ok = self._check_proxy_port_listening()
         services.append({"name": "代理网关", "status": "running" if proxy_ok else "stopped", "details": f"{LOCAL_PROXY_HOST}:{LOCAL_PROXY_PORT}"})
         self.send_json(HTTPStatus.OK, {"ok": True, "services": services})
 
@@ -518,14 +645,16 @@ class VPNRequestHandler(BaseHTTPRequestHandler):
         self.send_json(HTTPStatus.OK, {"csrf_token": token})
 
     def handle_websocket(self) -> None:
-        import hashlib
         key = self.headers.get("Sec-WebSocket-Key")
         if not key:
             self.send_response(HTTPStatus.BAD_REQUEST)
             self.end_headers()
             return
 
-        accept_key = hashlib.sha1((key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode()).digest().hex()
+        # RFC 6455: Sec-WebSocket-Accept = base64(sha1(key + GUID))
+        accept_key = base64.b64encode(
+            hashlib.sha1((key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode()).digest()
+        ).decode()
 
         self.send_response(HTTPStatus.SWITCHING_PROTOCOLS)
         self.send_header("Upgrade", "websocket")
@@ -534,20 +663,24 @@ class VPNRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
         client = self.connection
+        client_lock = threading.Lock()
         with ws_clients_lock:
             active_ws_clients.append(client)
 
-        from core.state import register_event_callback, broadcast_event
+        from core.state import register_event_callback, unregister_event_callback
 
         def callback(event_type, data):
             try:
                 payload = json.dumps({"type": event_type, "data": data}, ensure_ascii=False).encode("utf-8")
                 length = len(payload)
                 if length < 126:
-                    frame = bytes([0x81, length]) + payload
+                    header = bytes([0x81, length])
+                elif length < 65536:
+                    header = bytes([0x81, 0x7E]) + length.to_bytes(2, "big")
                 else:
-                    frame = bytes([0x81, 0x7E]) + length.to_bytes(2, "big") + payload
-                client.send(frame)
+                    header = bytes([0x81, 0x7F]) + length.to_bytes(8, "big")
+                with client_lock:
+                    client.send(header + payload)
             except Exception:
                 pass
 
@@ -562,8 +695,12 @@ class VPNRequestHandler(BaseHTTPRequestHandler):
                 except Exception:
                     break
         finally:
+            unregister_event_callback(callback)
             with ws_clients_lock:
-                active_ws_clients.remove(client)
+                try:
+                    active_ws_clients.remove(client)
+                except ValueError:
+                    pass
 
 
 def get_login_page(ui_cfg, error_message):

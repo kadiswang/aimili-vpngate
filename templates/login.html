@@ -308,7 +308,7 @@
         });
         var data = await response.json();
         if (response.ok && data.ok) {
-          window.location.reload();
+          window.location.href = "/" + (data.secret_path || "") + "/";
         } else {
           errorText.textContent = data.error || "账号或密码不正确";
           errorText.classList.add("show");

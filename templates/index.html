@@ -1570,7 +1570,7 @@ async function fetchWithCsrf(url, options = {}) {
           csrfToken = csrfData.csrf_token;
         }
       }
-    } catch(e) {}
+    } catch(e) { console.error("获取 CSRF token 失败", e); }
   }
   if (csrfToken) {
     options.headers["X-CSRF-Token"] = csrfToken;
@@ -1587,17 +1587,42 @@ async function fetchWithCsrf(url, options = {}) {
       return {};
     }
   }
+  // 401 未登录：跳转到登录页
+  if (resp.status === 401) {
+    try {
+      const errBody = await resp.clone().json();
+      if (errBody && errBody.need_login) {
+        window.location.href = "/";
+        return new Promise(() => {});
+      }
+    } catch(e) { console.error("解析 401 响应失败", e); }
+  }
   let errMsg = resp.statusText;
   try {
     const errBody = await resp.clone().json();
     errMsg = errBody.error || resp.statusText;
-  } catch(e) {}
+  } catch(e) { console.error("解析错误响应失败", e); }
   throw new Error(errMsg);
 }
 
 const $=id=>document.getElementById(id);
 const esc=s=>String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
 const base=p=>(p||"").split(/[\\/]/).pop();
+function mapErrorMessage(err){
+  const raw = String(err || "");
+  const codeMap = {
+    "ERR_ROUTE_FORWARD_DISABLED": "系统未开启 IPv4 流量转发，请联系管理员启用 ip_forward",
+    "ERR_ROUTE_DEV_NOT_FOUND": "VPN 虚拟网卡未启用，请先连接节点"
+  };
+  for (const code in codeMap) {
+    if (raw.indexOf(code) !== -1) return codeMap[code];
+  }
+  const m = raw.match(/\[错误代码\s*300[^\]]*\]/);
+  if (m) {
+    return "VPN 连接异常（" + m[0] + "），请检查节点配置或更换节点重试";
+  }
+  return raw || "未知错误";
+}
 function time(ts){return ts?new Date(ts*1000).toLocaleString():"从未"}
 function speed(v){return v?`${(v*8/1000/1000).toFixed(1)} Mbps`:"-"}
 
@@ -1806,7 +1831,7 @@ function render(){
   const statusMessage = state.last_check_message || "";
   const activeNodeInfo = activeNode ? `<span class="badge available" style="margin-left:8px; padding:2px 8px;">${esc(translateCountry(activeNode.country))} (${activeNode.id})</span>` : `<span class="badge unavailable" style="margin-left:8px; padding:2px 8px;">无</span>`;
   const localProxy = state.local_proxy || `http://127.0.0.1:${state.proxy_port || 7928}`;
-  if ($("status")) { $("status").innerHTML=`<span class="status-dot"></span>HTTP 代理本地接口：${localProxy} | 活动节点：${activeNodeInfo} | 状态：${statusMessage}`; }
+  if ($("status")) { $("status").innerHTML=`<span class="status-dot"></span>HTTP 代理本地接口：${esc(localProxy)} | 活动节点：${activeNodeInfo} | 状态：${esc(statusMessage)}`; }
   
   // Update proxy test status card based on background checks
   const pBadge = $("proxy_status_badge");
@@ -2044,6 +2069,7 @@ async function testNode(btn, id, event){
       }
     }
   } catch (e) {
+    console.error("测试节点失败", e);
   } finally {
     testingNodeIds.delete(id);
     render();
@@ -2078,11 +2104,11 @@ async function batchTestFiltered() {
   
   const startTime = Date.now();
   const nodeIds = toTest.map(n => n.id);
-  let pollInterval = null;
+  let batchPollInterval = null;
   let timeoutHandle = null;
   
   const stopPolling = () => {
-    if (pollInterval) clearInterval(pollInterval);
+    if (batchPollInterval) clearInterval(batchPollInterval);
     if (timeoutHandle) clearTimeout(timeoutHandle);
     batchTesting = false;
     btn.disabled = false;
@@ -2133,7 +2159,7 @@ async function batchTestFiltered() {
     
     if (response.ok) {
       // Start polling for results
-      pollInterval = setInterval(updateProgress, 2000);
+      batchPollInterval = setInterval(updateProgress, 2000);
       // Timeout after 5 minutes
       timeoutHandle = setTimeout(() => {
         stopPolling();
@@ -2189,7 +2215,7 @@ function startConnectionPolling() {
         pollInterval = null;
         try {
           const result = await fetchWithCsrf("./api/test_proxy", { method: "POST" });
-        } catch(pe){}
+        } catch(pe){ console.error("连接后测代理失败", pe); }
         load();
       }
     } catch(pe) {
@@ -2217,7 +2243,7 @@ async function connectNode(id){
     });
     const result = r;
     if (!result.ok) {
-      alert("连接失败: " + (result.error || "未知错误"));
+      alert("连接失败: " + mapErrorMessage(result.error));
       if (pollInterval) {
         clearInterval(pollInterval);
         pollInterval = null;
@@ -2245,7 +2271,7 @@ async function disconnectNode(){
     if (result.ok) {
       try {
         await fetchWithCsrf("./api/test_proxy", { method: "POST" });
-      } catch(pe){}
+      } catch(pe){ console.error("断开后测代理失败", pe); }
       load();
     } else {
       alert("断开连接失败: " + (result.error || "未知错误"));
@@ -2306,7 +2332,7 @@ async function load(){
     if (csrfResp.csrf_token) {
       csrfToken = csrfResp.csrf_token;
     }
-  } catch(e) {}
+  } catch(e) { console.error("加载时获取 CSRF token 失败", e); }
   
   stableSortNodes();
   updateCountryFilter();
@@ -2377,10 +2403,10 @@ async function doRefreshNodes(){
               return;
             }
           }
-        } catch(e) {}
+        } catch(e) { console.error("更新节点轮询状态失败", e); }
       }
     }
-  } catch(e){}
+  } catch(e){ console.error("更新节点失败", e); }
   el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> 更新节点`;
   el.dataset.refreshing = "false";
   el.style.pointerEvents=""; 
@@ -2767,17 +2793,13 @@ async function saveCredentials(e) {
           window.location.href = `${protocol}//${host}:${port}/${suffix}/`;
         }, 4000);
       } else {
-        successDiv.textContent = res.reauth_required ? "账号密码保存成功，请重新登录..." : "账号密码保存成功，已即时生效！";
+        successDiv.textContent = "账号密码保存成功，已即时生效！";
         successDiv.style.display = "block";
         submitBtn.disabled = false;
         submitBtn.textContent = "保存修改";
         setTimeout(() => {
-          if (res.reauth_required) {
-            window.location.reload();
-          } else {
-            closeCredentialsModal();
-            load();
-          }
+          closeCredentialsModal();
+          load();
         }, 1500);
       }
     } else {
@@ -2909,13 +2931,11 @@ async function saveNetwork(e) {
 
 async function logoutAdmin() {
   try {
-    const res = await fetchWithCsrf("./api/logout", { method: "POST" });
-    if (res.ok) {
-      window.location.reload();
-    }
+    await fetchWithCsrf("./api/logout", { method: "POST" });
+    window.location.href = "/";
   } catch (err) {
     console.error("退出登录失败", err);
-    window.location.reload();
+    window.location.href = "/";
   }
 }
 
@@ -2932,7 +2952,7 @@ setInterval(async () => {
       stableSortNodes();
       updateCountryFilter();
       render();
-    } catch(e) {}
+    } catch(e) { console.error("后台自动刷新节点失败", e); }
   }
 }, 10000);
 let gatewayPollInterval = null;
