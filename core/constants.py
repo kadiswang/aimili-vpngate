@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 ROOT_DIR = Path(sys.executable).resolve().parent if globals().get("__compiled__") else Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.environ["VPNGATE_DATA_DIR"]).resolve() if os.environ.get("VPNGATE_DATA_DIR") else ROOT_DIR / "vpngate_data"
@@ -88,5 +89,3 @@ NODE_EXPORT_FIELDS = [
     "as_name", "location", "ip_type", "quality", "latency_ms",
     "probe_status", "probe_message", "probed_at",
 ]
-
-from typing import Any

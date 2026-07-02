@@ -19,13 +19,14 @@ from core.constants import (
     LOG_TAIL_LINES, MAX_CONFIG_TEXT_LENGTH, NODE_TEST_MAX_WORKERS,
     AUTO_SWITCH_MAX_ATTEMPTS, TARGET_VALID_NODES, OPENVPN_PROBE_TIMEOUT,
     INITIAL_CONNECT_TEST_LIMIT, LOCAL_PROXY_HOST, LOCAL_PROXY_PORT,
-    parse_int,
 )
 from core.state import (
     read_json, write_json, log_to_json, set_state, read_nodes,
     _cached_load_ui_config, state_lock, config_lock,
-    active_openvpn_process, active_openvpn_node_id, is_connecting,
+    NODES_FILE,
 )
+import core.state
+from vpn_utils import parse_int
 from vpn.openvpn import (
     run_openvpn_until_ready, stop_active_openvpn, active_openvpn_running,
 )
@@ -508,8 +509,8 @@ def probe_priority_key(node: dict[str, Any]) -> tuple[int, int, int, int]:
 
 
 def current_fixed_node_id(ui_cfg: dict[str, Any]) -> str:
-    if active_openvpn_node_id:
-        return active_openvpn_node_id
+    if core.state.active_openvpn_node_id:
+        return core.state.active_openvpn_node_id
     nodes = read_nodes()
     active_node = next((n for n in nodes if n.get("active") and n.get("id")), None)
     if active_node:
@@ -543,7 +544,7 @@ def validate_node_allowed_by_routing(node: dict[str, Any], ui_cfg: dict[str, Any
 
 
 def enforce_active_node_allowed_by_routing(ui_cfg: dict[str, Any], reason: str = "路由规则已更新") -> str | None:
-    active_id = active_openvpn_node_id
+    active_id = core.state.active_openvpn_node_id
     if not active_id:
         return None
 
@@ -583,7 +584,6 @@ def enforce_active_node_allowed_by_routing(ui_cfg: dict[str, Any], reason: str =
 
 
 def reconnect_fixed_node_if_needed(ui_cfg: dict[str, Any]) -> bool:
-    global is_connecting
     if ui_cfg.get("routing_mode") != "fixed_ip" or active_openvpn_running():
         return False
     target_id = current_fixed_node_id(ui_cfg)
@@ -594,8 +594,8 @@ def reconnect_fixed_node_if_needed(ui_cfg: dict[str, Any]) -> bool:
         return False
 
     print(f"[维护线程] 固定 IP 模式下 OpenVPN 未运行，正在重新拉起同一节点: {target_id}", flush=True)
-    previous_connecting = is_connecting
-    is_connecting = False
+    previous_connecting = core.state.is_connecting
+    core.state.is_connecting = False
     try:
         connect_node(target_id)
         return active_openvpn_running()
@@ -603,7 +603,7 @@ def reconnect_fixed_node_if_needed(ui_cfg: dict[str, Any]) -> bool:
         print(f"[维护线程] 重新拉起固定节点 {target_id} 失败: {e}", flush=True)
         return False
     finally:
-        is_connecting = previous_connecting
+        core.state.is_connecting = previous_connecting
 
 
 active_test_indexes = set()
@@ -824,17 +824,16 @@ def auto_switch_node(attempt: int = 0) -> None:
 
 def connect_node(node_id: str) -> str:
     from core.config import load_ui_config
-    from core.state import clear_active_connection_state, NODES_FILE
-    global active_openvpn_process, active_openvpn_node_id, is_connecting
+    from core.state import clear_active_connection_state
     node_id = str(node_id or "").strip()
     if not node_id:
         raise ValueError("Node id is required")
     stopped_existing = False
     with state_lock:
-        if is_connecting:
+        if core.state.is_connecting:
             print("[连接] 正在建立其他连接中，跳过此请求", flush=True)
             raise RuntimeError("当前已有连接或节点检测任务正在运行，请稍后再试")
-        is_connecting = True
+        core.state.is_connecting = True
         set_state(is_connecting=True, active_node_latency="正在连接", last_check_message=f"正在初始化连接配置: {node_id}")
 
     try:
@@ -884,19 +883,18 @@ def connect_node(node_id: str) -> str:
             print(f"[连接核心失败] 无法与 VPN 节点 {node_id} 建立隧道连接！详情: {message}", flush=True)
             set_state(active_openvpn_node_id="", is_connecting=False, active_node_latency="无活动连接", last_check_message=f"连接失败: {message}")
             with state_lock:
-                active_openvpn_node_id = ""
+                core.state.active_openvpn_node_id = ""
             raise RuntimeError(message)
 
         with state_lock:
-            active_openvpn_process = process
-            active_openvpn_node_id = node_id
+            core.state.active_openvpn_process = process
+            core.state.active_openvpn_node_id = node_id
 
         set_state(active_node_latency="配置路由", last_check_message="正在配置策略路由规则与流量转发...")
         setup_policy_routing("tun0")
 
-        global last_active_ping_time, last_active_latency
-        last_active_ping_time = time.time()
-        last_active_latency = 0
+        core.state.last_active_ping_time = time.time()
+        core.state.last_active_latency = 0
 
         set_state(active_node_latency="测试延迟", last_check_message="正在直连测试代理出口延迟与可用性...")
         try:
@@ -906,7 +904,7 @@ def connect_node(node_id: str) -> str:
             fallback = parse_int(node.get("ping"))
             latency = vpn_utils.ping_latency_ms(ip, port, fallback)
             if latency > 0:
-                last_active_latency = latency
+                core.state.last_active_latency = latency
         except Exception:
             pass
 
@@ -935,41 +933,37 @@ def connect_node(node_id: str) -> str:
                 proxy_error=res.get("error", "未知错误")
             )
 
-        latency_str = f"{last_active_latency} ms" if last_active_latency > 0 else "检测超时"
+        _lat = core.state.last_active_latency
+        latency_str = f"{_lat} ms" if _lat > 0 else "检测超时"
         set_state(active_openvpn_node_id=node_id, is_connecting=False, last_check_message=f"Connected {node_id}", active_node_latency=latency_str)
         log_to_json("INFO", "VPN", f"节点 {node_id} 连接成功，出口网卡 tun0 已启用")
         return f"Connected {node_id}"
     except Exception as exc:
-        if stopped_existing or (active_openvpn_node_id == node_id and not active_openvpn_running()):
+        if stopped_existing or (core.state.active_openvpn_node_id == node_id and not active_openvpn_running()):
             clear_active_connection_state(f"连接失败: {exc}")
         else:
             set_state(is_connecting=False, last_check_message=f"连接失败: {exc}")
         raise
     finally:
         with state_lock:
-            is_connecting = False
-
-
-last_active_ping_time = 0.0
-last_active_latency = 0
+            core.state.is_connecting = False
 
 
 def maintain_valid_nodes(force: bool = False) -> str:
     from core.config import load_ui_config
-    from core.state import ensure_dirs, maintenance_lock, NODES_FILE
-    global active_openvpn_process, active_openvpn_node_id, is_connecting
+    from core.state import ensure_dirs, maintenance_lock
     ensure_dirs()
     if not maintenance_lock.acquire(blocking=False):
         msg = "节点维护任务正在运行，请稍后再试"
         set_state(last_check_message=msg)
         return msg
     with state_lock:
-        if is_connecting:
+        if core.state.is_connecting:
             maintenance_lock.release()
             msg = "当前已有连接或节点测试任务正在运行，请稍后再试"
             set_state(last_check_message=msg)
             return msg
-        is_connecting = True
+        core.state.is_connecting = True
     try:
         if force:
             with state_lock:
@@ -985,14 +979,14 @@ def maintain_valid_nodes(force: bool = False) -> str:
                 else:
                     has_active_id = False
                     with state_lock:
-                        if active_openvpn_node_id:
+                        if core.state.active_openvpn_node_id:
                             has_active_id = True
                             stop_active_openvpn()
                     if has_active_id:
                         print("[维护线程] 检测到当前 OpenVPN 进程已意外退出，准备自动切换节点", flush=True)
-                        is_connecting = False
+                        core.state.is_connecting = False
                         auto_switch_node()
-                        is_connecting = True
+                        core.state.is_connecting = True
 
         try:
             set_state(is_connecting=True, last_check_message="正在拉取最新的免费 VPN 节点列表...")
@@ -1019,8 +1013,8 @@ def maintain_valid_nodes(force: bool = False) -> str:
                 if n.get("id")
             }
             active_node = None
-            if active_openvpn_node_id:
-                active_node = next((n for n in kept_nodes if n.get("id") == active_openvpn_node_id), None)
+            if core.state.active_openvpn_node_id:
+                active_node = next((n for n in kept_nodes if n.get("id") == core.state.active_openvpn_node_id), None)
 
             merged: list[dict[str, Any]] = []
             seen_ids: set[str] = set()
@@ -1102,7 +1096,7 @@ def maintain_valid_nodes(force: bool = False) -> str:
                     available_candidates = apply_routing_filters(available_candidates, ui_cfg)
 
                 if available_candidates:
-                    is_connecting = False
+                    core.state.is_connecting = False
                     set_state(is_connecting=False, last_check_message="快速首连已找到可用节点，正在建立连接...")
                     auto_switch_node()
                     if active_openvpn_running():
@@ -1111,11 +1105,11 @@ def maintain_valid_nodes(force: bool = False) -> str:
                         set_state(
                             last_check_at=time.time(),
                             last_check_message=message,
-                            active_openvpn_node_id=active_openvpn_node_id,
+                            active_openvpn_node_id=core.state.active_openvpn_node_id,
                             valid_nodes=valid_nodes_count,
                         )
                         return message
-                    is_connecting = True
+                    core.state.is_connecting = True
 
         with state_lock:
             current_nodes = read_nodes()
@@ -1131,7 +1125,7 @@ def maintain_valid_nodes(force: bool = False) -> str:
 
         set_state(is_connecting=True, last_check_message="正在并发检测所有节点可用性...")
         test_multiple_nodes(to_test_ids)
-        is_connecting = False
+        core.state.is_connecting = False
 
         with state_lock:
             merged = read_nodes()
@@ -1172,12 +1166,12 @@ def maintain_valid_nodes(force: bool = False) -> str:
         set_state(
             last_check_at=time.time(),
             last_check_message=message,
-            active_openvpn_node_id=active_openvpn_node_id,
+            active_openvpn_node_id=core.state.active_openvpn_node_id,
             valid_nodes=valid_nodes_count,
         )
         return message
     except Exception as e:
         raise e
     finally:
-        is_connecting = False
+        core.state.is_connecting = False
         maintenance_lock.release()

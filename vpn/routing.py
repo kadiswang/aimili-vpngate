@@ -53,7 +53,7 @@ def apply_routing_filters(
     ui_cfg: dict[str, Any],
     include_unknown_ip_type: bool = False,
 ) -> list[dict[str, Any]]:
-    from core.constants import parse_int
+    from vpn_utils import parse_int
     candidates = list(nodes)
     routing_mode = ui_cfg.get("routing_mode", "auto")
     target_country = ui_cfg.get("force_country", "")

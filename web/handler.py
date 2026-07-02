@@ -2,11 +2,9 @@
 from __future__ import annotations
 import json
 import os
-import re
 import socket
 import threading
 import time
-import uuid
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -14,8 +12,7 @@ from typing import Any
 
 from core.constants import (
     DATA_DIR, UI_HOST, UI_PORT, NODE_EXPORT_FIELDS, LOG_TAIL_LINES,
-    MAX_CONFIG_TEXT_LENGTH, SESSION_TIMEOUT, LOGIN_RATE_LIMIT_WINDOW,
-    LOGIN_RATE_LIMIT_MAX_ATTEMPTS,
+    MAX_CONFIG_TEXT_LENGTH, SESSION_TIMEOUT,
 )
 from core.state import (
     state_lock, active_sessions, ws_clients_lock, active_ws_clients,

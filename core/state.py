@@ -309,6 +309,38 @@ def clear_active_connection_state(message: str) -> None:
     )
 
 
+def graceful_shutdown() -> None:
+    """清理所有活动连接、关闭 OpenVPN 进程、清理策略路由，安全退出。"""
+    global active_openvpn_process, active_openvpn_node_id, is_connecting
+    print("[Shutdown] 正在执行优雅关闭...", flush=True)
+    try:
+        is_connecting = False
+        if active_openvpn_process is not None:
+            stop_process(active_openvpn_process)
+            active_openvpn_process = None
+        active_openvpn_node_id = ""
+        try:
+            from vpn.routing import cleanup_policy_routing
+            cleanup_policy_routing()
+        except Exception as e:
+            print(f"[Shutdown] 清理策略路由失败: {e}", flush=True)
+        try:
+            from vpn.openvpn import kill_existing_openvpn_processes
+            kill_existing_openvpn_processes()
+        except Exception as e:
+            print(f"[Shutdown] 清理残留 OpenVPN 进程失败: {e}", flush=True)
+        set_state(
+            active_openvpn_node_id="",
+            is_connecting=False,
+            active_node_latency="无活动连接",
+            last_check_message="服务已关闭",
+        )
+        log_to_json("INFO", "Main", "服务已优雅关闭")
+    except Exception as e:
+        print(f"[Shutdown] 优雅关闭时发生异常: {e}", flush=True)
+        print(traceback.format_exc(), flush=True)
+
+
 def check_proxy_health() -> dict[str, Any]:
     import vpn_utils
     is_ipv6 = ":" in LOCAL_PROXY_HOST

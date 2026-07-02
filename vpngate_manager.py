@@ -5,8 +5,8 @@ import threading
 import time
 import os
 
-from core.constants import UI_HOST, UI_PORT, FETCH_INTERVAL_SECONDS, CHECK_INTERVAL_SECONDS, ensure_dirs
-from core.state import log_to_json, log_audit, graceful_shutdown
+from core.constants import UI_HOST, UI_PORT, FETCH_INTERVAL_SECONDS, CHECK_INTERVAL_SECONDS
+from core.state import log_to_json, graceful_shutdown, ensure_dirs
 from core.config import init_config
 from vpn.nodes import maintain_valid_nodes, auto_switch_node
 from vpn.openvpn import kill_existing_openvpn_processes

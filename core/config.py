@@ -100,3 +100,12 @@ def load_ui_config() -> dict[str, Any]:
             pass
 
     return config
+
+
+def init_config() -> dict[str, Any]:
+    """初始化配置：确保目录存在并加载/生成 UI 配置。"""
+    from .state import ensure_dirs
+    ensure_dirs()
+    config = load_ui_config()
+    print(f"[Config] 初始化完成: username={config.get('username')}, port={config.get('port')}", flush=True)
+    return config

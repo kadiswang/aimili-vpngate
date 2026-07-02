@@ -17,9 +17,10 @@ from core.constants import (
     OPENVPN_TEST_TIMEOUT_SECONDS,
 )
 from core.state import (
-    state_lock, active_openvpn_process, active_openvpn_node_id, is_connecting,
+    state_lock,
     read_nodes, write_json, set_state, log_to_json, stop_process, DATA_DIR, CONFIG_DIR,
 )
+import core.state
 from vpn.routing import setup_policy_routing, cleanup_policy_routing
 
 
@@ -292,19 +293,18 @@ def kill_existing_openvpn_processes() -> None:
 
 
 def stop_active_openvpn() -> None:
-    global active_openvpn_process, active_openvpn_node_id
     with state_lock:
         cleanup_policy_routing()
         config_to_delete = None
-        if active_openvpn_node_id:
+        if core.state.active_openvpn_node_id:
             nodes = read_nodes()
-            node = next((item for item in nodes if item.get("id") == active_openvpn_node_id), None)
+            node = next((item for item in nodes if item.get("id") == core.state.active_openvpn_node_id), None)
             if node:
                 config_to_delete = node.get("config_file")
 
-        stop_process(active_openvpn_process)
-        active_openvpn_process = None
-        active_openvpn_node_id = ""
+        stop_process(core.state.active_openvpn_process)
+        core.state.active_openvpn_process = None
+        core.state.active_openvpn_node_id = ""
         kill_existing_openvpn_processes()
 
         if config_to_delete:
@@ -317,4 +317,5 @@ def stop_active_openvpn() -> None:
 
 
 def active_openvpn_running() -> bool:
-    return active_openvpn_process is not None and active_openvpn_process.poll() is None
+    p = core.state.active_openvpn_process
+    return p is not None and p.poll() is None
