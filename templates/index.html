@@ -2322,6 +2322,14 @@ async function load(){
   state=d.state||{}; 
   console.log("[load] state.last_fetch_status:", state.last_fetch_status);
   
+  // 拉取设置数据并合并到 state（设置弹窗依赖这些字段）
+  try {
+    const settingsResp = await fetchWithCsrf("./api/settings");
+    if (settingsResp && typeof settingsResp === "object") {
+      state = Object.assign({}, state, settingsResp);
+    }
+  } catch(e) { console.error("加载设置失败", e); }
+  
   if (state.country_translations) {
     countryDict = state.country_translations;
   }

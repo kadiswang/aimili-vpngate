@@ -88,4 +88,7 @@ NODE_EXPORT_FIELDS = [
     "score", "ping", "speed", "sessions", "owner", "asn",
     "as_name", "location", "ip_type", "quality", "latency_ms",
     "probe_status", "probe_message", "probed_at",
+    "trust_score", "is_datacenter", "is_residential",
+    "is_vpn", "is_proxy", "is_tor", "is_crawler",
+    "is_abuser", "abuser_level",
 ]
